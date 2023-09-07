@@ -1,8 +1,10 @@
-# useful-solidity-patterns
+# Solidity 设计模式
 ---
-This repo is an ongoing collection of useful, and occasionally clever, solidity/EVM patterns that actually get used in the wild. These bite-sized guides are written in approachable terms so engineers of all skill levels can understand them. Every guide comes with a concise, self-contained, working code example and tests to demonstrate the pattern. New patterns are added regularly.
 
-*The code examples herein are meant to be educational. While the patterns are sound, the examples are not always designed with utmost security or robustness in mind, and sometimes will even forgo best practices in order to best illustrate a concept. They should not be deployed without an independent security review.*
+这个仓库会持续收录一些在现实生产开发过程中有用或者比较巧妙的的 Solidity/EVM 设计模式。相关的内容会使用尽可能地用通俗易懂的方式来编写，以便降低阅读者的技术门槛。同时每个模式的文档都会附带简单, 可运行的代码示例和测试来更好地说明。
+
+*仓库下所有的代码示例都只是教育用途, 某些地方为了更清晰地展示概念甚至放弃了最佳实践, 所以他们不应该在没有经过严格审计的情况下就直接应用到生产环境中.*
+
 
 ## [Solidity Patterns](./patterns)
 - [ABI Decode With Selector](./patterns/abi-decode-with-selector/)
@@ -53,11 +55,11 @@ This repo is an ongoing collection of useful, and occasionally clever, solidity/
     - Avoid having to migrate user allowances between upgrades with a dedicated approval contract.
 - [Stack-Too-Deep Workarounds](./patterns/stack-too-deep/)
     - Clean solutions for getting around and avoiding stack-too-deep errors. So clean that you should do them regardless!
-- Stay tuned for more 😉
+- 持续关注, 会有更多设计模式更新进来 😉
 
 ## Installing, Building, Testing
 
-Make sure you have [foundry](https://book.getfoundry.sh/getting-started/installation) installed and up-to-date first.
+在开始之前确保你已经安装了最新版本的 [foundry](https://book.getfoundry.sh/getting-started/installation)
 
 ```bash
 # Clone the repo
@@ -69,3 +71,6 @@ $> forge test -vvv
 # Run forked tests
 $> forge test -vvv --fork-url $YOUR_NODE_RPC_URL -m testFork
 ```
+
+## 感谢
+本仓库是 [useful-solidity-patterns](https://github.com/dragonfly-xyz/useful-solidity-patterns/tree/main) 的中文译本, 非常感谢 [dragonfly_xyz](https://twitter.com/dragonfly_xyz) 为社区贡献了这么优质的内容.
