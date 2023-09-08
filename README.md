@@ -6,9 +6,9 @@
 *仓库下所有的代码示例都只是教育用途, 某些地方为了更清晰地展示概念甚至放弃了最佳实践, 所以他们不应该在没有经过严格审计的情况下就直接应用到生产环境中.*
 
 
-## [Solidity Patterns](./patterns)
-- [ABI Decode With Selector](./patterns/abi-decode-with-selector/)
-    - Techniques for decoding function call data and revert errors. 
+## [Solidity 设计模式](./patterns)
+- [带选择器的 ABI-encoding 数据的解码](./patterns/abi-decode-with-selector/)
+    - 用来解码函数调用以及错误信息的技术
 - [Advanced Error Handling](./patterns/error-handling)
     - Write resilient code that intercepts and reacts to errors thrown by other contracts.
 - [Assembly Tricks (Part 1)](./patterns/assembly-tricks-1)
