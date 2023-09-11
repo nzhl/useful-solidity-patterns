@@ -1,37 +1,49 @@
-# Error Handling
+# 错误处理
 
-- [📜 Example Code](./PooledExecute.sol)
-- [🐞 Tests](../../test/PooledExecute.t.sol)
+- [📜 代码示例](./PooledExecute.sol)
+- [🐞 测试](../../test/PooledExecute.t.sol)
 
-Any contract that interacts with external tokens or protocols should at least consider whether they need to gracefully handle errors when calling into them. In extreme cases, failure to do so could lead to scenarios where your contract becomes permanently frozen because some external contract it relies on reverts unexpectedly. Here we'll explore different ways to handle those errors and what we can do with them.
+在与任何外部合约交互之前至少应该先考虑如何妥善处理他们可能抛出的错误. 否则在极端情况下没有妥善处理的三方错误可能会导致我们的合约逻辑不能正确地执行. 
+接下来我们将探索几种不同的错误处理方式.
 
-## Reverts and Call Contexts
+## 抛出错误以及调用上下文
 
-First let's establish some foundational understanding of reverts by quickly going over how they're related to EVM call contexts.
+首先需要先了解一下抛出错误和 EVM 调用上下文之间的关系
 
-Each time a contract makes a call to a function on another contract (and even to itself using `this.fn()` syntax), a new call context is entered. When a revert is encountered in that call, execution within that call context halts immediately and all state changes that occurred as a result of that call are undone (hence why it's called a "revert"). If no callers in the call chain intercept the revert, the revert will eventually bubble all the way upwards causing the entire transaction to fail.
+当一个合约调用另一个合约上的某个函数时(或者是该合约使用 `this.fn()` 的方式调用它自己时), 将会创建并进入一个新的调用上下文.
+如果这时候发生了错误的话, 在这个新的调用上下文中的代码执行将会立即中断, 并且在这个调用上下文中发生的所有状态改变全部回滚(这就是为什么抛出错误的过程
+英文叫 revert , revert 的中文意思就是回滚).
+如果此时在整个调用链中没有调用者拦截这次错误的话, 则错误会层层冒泡最终导致整个交易失败.
+
 
 ![call-context-revert](solidity-call-reverts.png)
 
-### Internal Calls
+### 内部调用
 
-It's worth pointing out that calls to `internal`/`private` functions as well as calls to `public` functions without using `this` redirection (e.g., `foo()` instead of `this.foo()`) are not true calls and will actually be implemented as `JUMP` instructions by the compiler, running similarly as if they were defined inside the calling function itself. This means that invoking them does not create a new call context, so reverting inside them has the same same effect as reverting inside their caller. There is no way to capture reverts a function throws inside of its own call context so these *are not* the types of function calls we're covering here.
+值得一提的是如果我们调用 `internal`/`private` 函数或者调用 `public` 函数但不使用 `this` (也就是 `foo()` 而不是 `this.foo()`) 的情况下实际上发生的是内部调用,
+此时在编译器会将调用编译成 `JUMP`, 这时候的执行逻辑就好像所有的语句都被写在了同一个函数里面一样. 换句话说此时的调用并不会创建调用上下文, 所以如果这时候被调用函数
+抛出错误的话其实和调用者函数自身直接发生错误的效果是一样的, EVM 中没有办法拦截发生在函数自身的调用上下文中的错误, 因此这种情况并不在我们的讨论范围之内.
 
-## A Tale of Two Reverts
+## 两种不同的抛出错误的方式
 
-Typically contracts will explicitly revert using the `require()` or `revert()` built-in functions, or the `revert` keyword, which all issue a `REVERT` opcode. This is the recommended way of failing in a contract. As illustrated earlier, this ends execution of the current call context and returns control to the caller, signaling that the call failed with the provided revert data (e.g., the error string parameter to `require()` ).
+通常来说合约抛出错误是通过内置函数 `require()`, `revert()` 或是 `revert` 关键字来完成的, 这些情况下实际底层实现都是 `REVERT` 字节码. 这也是比较推荐的在合约
+中抛出错误的方式. 如上文所描述的, 一旦抛出错误则当前调用上下文直接结束所有状态回滚并将控制权转移给上层调用者, 同时返回错误信息 (比如在 `require()` 的例子
+中返回的错误信息是通过参数来传递的 i.e. `require(errorInfo)` ).
 
-But there is another, more insidious type of revert that can be raised with the `INVALID` opcode. You will rarely see people throw these intentionally. These types of reverts are sometimes employed by older versions of the solidity compiler when generating safeguarding code, such as checks for integer overflows. EVM violations, such as running out of gas or exceeding the call stack depth will also automatically throw this kind of revert. The critical difference between this type of revert and standard reverts (`REVERT` opcode) is that, with `INVALID`, all gas provided to the call will be consumed! This can have major implications when trying to design a resilient contract which we'll dig into [later](#adding-more-resiliency).
+但是其实还有另一种更罕见的抛出错误的方式, 底层使用的是 `INVALID` 字节码. 一般很少有人会故意抛出这类错误, 但有些老版本的编译器在处理整数溢出的时候会生成此类字节码,
+另外 EVM 自身的一些异常, 比如 gas 消耗完了或者是调用栈太深的时候也会抛出这类错误. 这两种错误最关键的区别在于, 通过 `INVALID` 进行异常回滚会将所有的提供给
+该次调用的 gas 全部消耗掉, 而 `REVERT` 则会返还剩余 gas. 这个区别对于设计一个鲁棒性的合约来讲有重要的影响, 具体细节会在 [下文](#adding-more-resiliency) 介绍.
 
-## Handling Reverts
+## 错误处理
 
-As illustrated earlier, when making a vanilla call through solidity, the compiler will generate code that bubbles up any revert, meaning your function that made the failing call will immediately also revert in response.
+如前文所述, 当通过 Solidity 发起函数调用的时候, 如果你不做特殊处理的话, 如果有任何错误在该次调用中发生, 会导致该错误继续向上冒泡进而导致你的调用逻辑也发生错误.
 
-Now let's look at ways to avoid this default behavior and eventually respond to a revert instead of just giving up 😛.
+让我们来看看如何避免这种默认的行为, 妥善处理抛出的错误而不是直接放弃😛.
 
 ### `try` + `catch`
 
-Solidity `0.6.0` introduced the `try`/`catch` contstruct which lets you handle call reverts with syntax familiar to other languages. Unlike visually similar languages, Solidity's `try`/`catch` only wraps *a single external call*, which immediately follows the `try` keyword.
+Solidity `0.6.0` 中引入了和其他语言非常类似的 `try`/`catch` 语句来帮助我们处理错误. 当然虽然看着像别的语言, Solidity 中的 `try`/`catch` 只能处理*单个函数调用*, 该
+函数调用的语句必须紧接着 `try` 关键字, 而在 `try` 的语句中描述的应该是调用成功后的后续逻辑, 具体可以看下面的例子:
 
 ```solidity
 try someContract.someFunction(arg1, arg2) returns (uint256 someResult) {
@@ -42,11 +54,15 @@ try someContract.someFunction(arg1, arg2) returns (uint256 someResult) {
 // Rest of function...
 ```
 
-If you're used to reverts thrown with `require()` or `revert()` syntax, it may seem odd that `catch()` accepts a `bytes` for the `revertData` instead of a `string`. Indeed, this is the only parameter allowed for `catch()`. We'll dig into why and what this means [later](#inspecting-revert-data).
+如果你习惯使用 `require()` or `revert()` 语法来抛出错误的话, 可能会觉得有点奇怪因为 `catch()` 接收 `bytes`, 如图中的 `revertData` 而不是一个 `string`, 毕竟你
+传递给 `require()` or `revert()` 的错误信息是一个 `string`. 事实上, 无论那种形式的错误信息最终都会转化为 `bytes`, 并且这也是 `catch` 接受的唯一形式. 在 
+[下文](#inspecting-revert-data) 我们将会继续解释其中的缘由.
 
-### Low-Level Calls
+### 底层调用
 
-Prior to solidity `0.6.0`, low-level calls (or the equivalent assembly) were the only way to capture revert data and bypass the automatic bubbling up of reverts. Low-level calls use the `call()`, `staticcall()`, or `delegatecall()` methods on an `address` type, and we must ABI-encode the call data (which encodes the function to call and the parameters) ourselves. Instead of reverting if the call fails, you get back a tuple `(bool success, bytes returnOrRevertData)`, where the meaning of `returnOrRevertData` depends on whether the function succeeded or not.
+在 Solidity `0.6.0` 之前, 使用底层调用(或者也可以使用汇编)是唯一可以捕获并处理错误的方式. 底层调用主要是指 `call()`, `staticcall()`, or `delegatecall()`, 
+他们都是 `address` 类型上的方法并且接受的是使用 ABI-encoding 编码过的数据(主要是包含函数的签名以及参数)作为参数. 与直接抛出错误不同的是, 这几个函数的返回值
+都是 `(bool success, bytes returnOrRevertData)`, `returnOrRevertData` 的值在函数执行成功的时候返回函数的返回值否则返回的就是我们上面所说的错误信息 `bytes`.
 
 ```solidity
 (bool success, bytes memory returnOrRevertData) = address(someContract).call(
@@ -61,13 +77,18 @@ if (success) {
 }
 ```
 
-This syntax obviously more long-winded and error-prone than `try`/`catch`, which can give you type-safety on the contract, arguments, and return value. But there are still extremely compelling reasons to use low-level calls as will be demonstrated [later](#adding-even-more-resiliency).
+显然这种方式比 `try`/`catch` 更啰嗦也更容易出错, 因为后者可以在函数, 调用参数以及返回值上给你更好的类型安全, 而前者需要你自己编码函数签名参数并解码返回值.
+但是仍然有些场景下我们会需要使用这些底层调用, 具体在 [下文](#adding-even-more-resiliency) 会提到.
 
-## Inspecting Revert Data
+## 检查错误信息
 
-Now that we have interrupted the bubbling up of reverts and have access to the revert data, what can we do with it it?
+既然我们现在已经理解了错误冒泡以及如何访问错误信息, 那么要如何利用它呢?
 
-You'll notice that, in all examples, the revert data is of type `bytes`. If you're used to throwing string reverts via `require()` or `revert()` syntax, you may wonder why this is not just of type `string`. The reason is that revert data (just like return data) can be any arbitrary sequence of bytes. Using the `revert` keyword (not function) will allow you to throw a custom ABI-encoded error type. In fact, when you throw a string revert, the revert data is not the string itself but actually ABI-encoded call data to a function with a signature of `Error(string)` (i.e., `0x08c379a00000000000000000000000000000000000000000000000000000000000000020...`):
+你已经注意到了, 所有例子中错误信息的类型都是 `bytes`. 如果你习惯用 `require()` or `revert()` 抛出错误, 你可能会想为什么不直接返回类型 `string` 呢? 原因是和返回
+数据一样, 抛出的错误信息实际上可以是任何字节数组, 使用关键字 `revert` 而不是 `revert() ` 函数允许你抛出一个自定义类型的的错误, 当然错误也会使用 ABI-encoding 的
+规则进行编码从而转化成 `bytes`. 事实上, 即使是你直接抛出一个 `string` 作为错误信息的情况下, 它实际上也是先基于一个形如 `Error(string)` 的函数的形式进行
+ABI-encoding 的编码成 `bytes` 然后再返回的, 所以在这个例子中实际返回的是形如 `0x08c379a00000000000000000000000000000000000000000000000000000000000000020...` 的
+形式.
 
 ```solidity
 revert('hello')
@@ -77,7 +98,9 @@ error Error(string msg); // Declare custom error type
 revert Error('hello'); // Throw custom error type
 ```
 
-So, let's say we want to act differently if the contract reverts with the string `'foo'`. We can compare the hash (because this is often quicker than comparing bytes) of revert data to the hash of the ABI-encoded call to `Error(string)` with argument `'foo'`:
+因此, 假设我们想要在合约抛出字符串 `foo` 的时候进行捕获并处理, 那么我们只需要比较实际返回的错误信息的哈希与签名为`Error(string)` 参数为 `foo` 的ABI-encoding 
+编码结果之后的哈希就行了. 之所以不直接比较两个返回值而是比较返回值的哈希是因为比较哈希通常比比较字节数组更快 (我个人认为更准确的说法应该是在 Solidity 中比较
+字节数组一个比较方便的方法就是比较哈希, 因为 Solidity 中不支持数组直接比较, 另一种做法就是逐个字节进行比较, 也非常麻烦), 具体操作如下:
 
 ```solidity
 try someContract.someFunction(arg1, arg2) returns (uint256 someResult) {
@@ -90,11 +113,12 @@ try someContract.someFunction(arg1, arg2) returns (uint256 someResult) {
 }
 ```
 
-If the revert error could be a more complex type, with distinct parameters that you want to act upon, you can check out [this guide on decoding it](../abi-decode-with-selector/).
 
-## Manually Bubbling Up Reverts
+如果抛出的错误信息涉及复杂类型, 或者具有多个不同参数, 你可以参考我们上一节提到的 [带选择器的 ABI-encoding 数据的解码](../abi-decode-with-selector/).
 
-We may find that we do not want to handle certain errors and instead want them to bubble up for the caller above us to handle. Often novice solidity devs will try to re-throw the revert data with `revert()` like:
+## 手动向上抛出错误
+
+有时候可能会发现我们并不想处理某些错误, 而是继续抛出希望上层调用者来处理, 这时候初学者可能会尝试使用 `revert()` 来再次抛出错误:
 
 ```solidity
 (bool success, bytes memory returnOrRevertData) = someContract.call(...);
@@ -106,7 +130,8 @@ if (!success) {
 }
 ```
 
-But remember that revert data can potentially be (and often is) an ABI-encoded `Error(string)` type, not a string at all! And since `revert()` ABI-encodes its argument as an `Error(string)` type, what actually ends up being bubbled up to the caller is a double-encoded `Error(string)` (an encoded error within an encoded error), which makes absolutely no sense. The correct way to bubble up a captured revert without altering the data is to drop into some simple assembly:
+但是这其实忽略了一点, 错误数据本身很大可能已经是一个 ABI-encoding 编码过的 `Error(string)` 类型, 我们这里使用 `revert()` 再次抛出错误会导致实际的错误信息
+被 `Error(string)` 的形式编码两次, 所以正确的方式应该是将错误数据原封不动的往上抛出, 这需要用到简单的汇编:
 
 ```solidity
 (bool success, bytes memory returnOrRevertData) = someContract.call(...);
@@ -123,9 +148,11 @@ if (!success) {
 }
 ```
 
-## Adding More Resiliency
+## 增加更多的鲁棒性
 
-If your code is calling contracts that you either haven't vetted and/or if those contracts (or one that they call) can realistically encounter an `INVALID` opcode, then it might make sense to also add a gas limit to your call. Without it, the call may have the potential to consume all remaining gas. Specifying a gas limit limits the *maximum* amount of gas the call can consume, not the minimum. This way, you can be sure to still have enough gas remaining after the call returns to perform failover logic. You can apply a gas limit with both `try`/`catch` and low-level call constructs:
+如果你的代码调用了你没有仔细检查或者有可能遇到 `INVALID` 字节码的合约时, 这时候建议给这次调用加上 gas 上限. 否则的话, 这次调用有可能会消耗掉所有剩余的 gas. 
+(译者注: 这里说消耗完所有的应该不准确, 因为事实上在 Tangerine Whistle fork 以后, 发起调用默认情况下(最多)只能消耗调用者调用上下文中六十四分之六十三的 gas)
+注意表明的 gas 限制限制的是*最大*数量的 gas 消耗而不是最小. 同样在 `try`/`catch` 的例子中加上 gas 限制的代码如下:
 
 ```solidity
 // Restrict a try/catch call to 500k max gas.
@@ -141,20 +168,21 @@ try someContract.someFunction{gas: 500e3}(arg1, arg2) returns (uint256 someResul
 ...
 ```
 
-## Adding Even More Resiliency
+## 增加甚至更多的鲁棒性
 
-There are some exotic edge cases that `try`/`catch` cannot handle because the revert will actually be thrown by code generated by the solidity compiler *as part of your function*. This can happen if:
+也有一些 `try`/`catch` 没办法处理的极端情况, 这些情况下错误是由编译器生成的额外检查抛出的, 他们本质属于 *你的函数的一部分* 而不是目标函数, 
+所以错误会被直接抛出而没有办法被截获, 具体而言:
 
-- You're making a function call *that expects no return value* to an address that does not have any code in it.
-    - This is because the compiler will generate code that first asserts that the call target has code in it.
-    - Perhaps the contract at the call target never existed or self-destructed.
-- The call returns data that cannot be abi-decoded as the expected return type.
-    - For example, the function is supposed to return a `uint256` but actually returns less than 32 bytes of data.
-    - Perhaps the contract is malicious or implements a token standard incorrectly.
+- 你希望 *如果调用目标地址没有代码则直接返回空值* 而不是调用失败时, 你的调用实际会抛出错误
+    - 这是因为编译器会生成在调用之前预先检查是否目标地址中含有代码的逻辑
+    - 被调用的合约不包含代码可能是因为它就没有被部署过或者已经自毁了 (还是可能它就是个 EOA 地址)
+- 当被调用的函数的返回值并不能被成功解码成我们预期的类型, 也会抛出错误
+    - 比如说一个函数预期返回 `uint256` 但是实际上返回了个少于32字节的数据.
+    - 这种情况有可能是因为合约本身就是个恶意合约也可能是合约没有正确实现约定的规范.
 
-To handle these more exotic cases gracefully, we may want to return to low-level calls because:
-- The compiler will not generate the code check for the call target.
-- We can perform validation on the abi-encoded return data before passing it into `abi.decode()` to avoid causing ourselves to revert the way `try`/`catch` would.
+为了更优雅地处理这些极端情况, 用回低级调用可能会更好, 原因如下:
+- 编译器不会自动生成预先检查目标合约是否含有代码的逻辑.
+- 我们可以在使用 `abi.decode()` 解码返回数据之前手动检查其正确性从而避免出现类似使用 `try`/`catch` 方式抛出的错误.
 
 ```solidity
 (bool success, bytes memory returnOrRevertData) = address(someContract).call(
@@ -172,16 +200,27 @@ if (success) {
 ...
 ```
 
-The default behavior of performing a call on an address without code is to *succeed* and return empty data. So if the call succeeds and is expected to return something, we can avoid checking if there is code at the contract by simply checking that the return data is non-zero length. However, be wary that if the call is expected to return nothing, there is no way to distinguish a successful call to a contract vs a call to an EOA, so you may want to manually check that the target address actually contains code in these cases.
+调用一个没有代码的地址(EOA 或者还未部署的地址) 的默认行为是成功以及空数据. 所以在调用成功一定会返回数据的场景下, 我们可以不需要检查我们是否调用了一个
+没有代码的地址. 但是需要注意的是, 如果调用的是函数本身就算成功也不返回任何数据的话, 那么我们实际上是没有办法区别到底我们成功调用了这个合约还是我们调用了
+某个 EOA 地址的, 所以这种情况下你可能会需要手动检查我们调用的目标地址是否包含代码.
 
-## Who Really Needs This?
 
-Sufficiently complex protocols that build on other protocols and tokens will usually need some kind of error handling in some part of their system (certain ERC20 tokens are notoriously non-compliant). So it is not uncommon to find these strategies in the wild. But depending on how critically you rely on external contracts and whether those contracts behave reliably, you may not need to be as resilient and it's rare you would need to worry about the contents of the revert data. In the majority of cases, simply doing nothing and allowing the revert to bubble up is actually the simpler and also perfectly acceptable approach.
+## 什么场景下真的需要这些?
 
-## Runnable Example
+基于三方协议构建的复杂的协议通常会需要在它们的系统中引入一些错误处理(某些 ERC20 代币合约并不遵循标准规范), 因此在真实的生产环境中这些错误处理的策略其实非常常见.
+当然这也取决你有多依赖三方合约以及这些合约的稳定程度, 很有可能你根本不需要考虑那么完善, 毕竟需要担心外部合约抛出错误的场景算是少数.
+大部分情况下, 啥都不做让错误抛出并向上传递是事实上更简单并且也是完全可接受的处理方式.
 
-The [included example](./PooledExecute.sol) is a contract that will execute an arbitrary call with value (set in the constructor) once enough users have contributed enough ETH via `join()`. If the call fails, everyone who contributed can withdraw their contribution via `withdraw()`. If we did not recover from a failed call, we would have to rely on some other mechanism to begin the withdrawal phase.
+## 可以执行的示例
 
-## References
+[代码示例](./PooledExecute.sol) 展示的是一个用户可以通过 `join()` 方法贡献了 ETH 的合约, 一旦募集到了足够的 ETH, 那么就可以执行预先设计好的某个外部调用.
+当然一旦调用失败, 每个贡献者都可以通过 `withdraw()` 方法取回自己贡献的 ETH , 可以想到如果没有错误处理的话, 那么我们就得设计其他方式来开始退钱流程了.
 
-This guide provides an embarrassingly condensed overview of Solidity revert and error constructs. For the full technical details, visit [the official docs](https://docs.soliditylang.org/en/v0.8.16/control-structures.html#error-handling-assert-require-revert-and-exceptions).
+## 参考
+
+这篇文章中只是对 Solidity 中错误以及回滚的相关话题做了简要的描述, 如果希望了解更多技术细节可以参看 [官方文档](https://docs.soliditylang.org/en/v0.8.16/control-structures.html#error-handling-assert-require-revert-and-exceptions).
+
+## 一些可能有用的链接
+- [EVM Codes - REVERT](https://www.evm.codes/#fd?fork=shanghai)
+- [EVM Codes - INVALID](https://www.evm.codes/#fe?fork=shanghai)
+- [Solidity by Example  try-catch](https://solidity-by-example.org/try-catch/)
