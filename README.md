@@ -11,8 +11,8 @@
     - 用来解码函数调用以及错误信息的技术
 - [错误处理进阶](./patterns/error-handling)
     - 对其他合约抛出的错误进行适当的处理以提升代码的健壮性
-- [Assembly Tricks (Part 1)](./patterns/assembly-tricks-1)
-    - Short, useful assembly tricks to save some gas and make up for solidity shortcomings.
+- [汇编技巧-1](./patterns/assembly-tricks-1)
+    - 一些精简, 有效的汇编技巧, 有助于节省 gas 同时绕开一些 Solidity 语言本身的限制
 - [Basic Proxies](./patterns/basic-proxies)
     - Contracts with upgradeable logic.
 - [Big Data Storage (SSTORE2)](./patterns/big-data-storage)
