@@ -13,8 +13,8 @@
     - 对其他合约抛出的错误进行适当的处理以提升代码的健壮性
 - [汇编技巧-1](./patterns/assembly-tricks-1)
     - 一些精简, 有效的汇编技巧, 有助于节省 gas 同时绕开一些 Solidity 语言本身的限制
-- [Basic Proxies](./patterns/basic-proxies)
-    - Contracts with upgradeable logic.
+- [代理模式基础](./patterns/basic-proxies)
+    - 可升级合约相关的逻辑
 - [Big Data Storage (SSTORE2)](./patterns/big-data-storage)
     - Cost efficient on-chain storage of multi-word data accessible to contracts.
 - [Commit + Reveal](./patterns/commit-reveal)

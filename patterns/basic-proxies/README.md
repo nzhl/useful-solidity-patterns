@@ -1,25 +1,29 @@
-# Basic Proxies
+# 代理模式基础
 
-- [📜 Example Code](./ProxyWallet.sol)
-- [🐞 Tests](../../test/ProxyWallet.t.sol)
+- [📜 示例代码](./ProxyWallet.sol)
+- [🐞 测试](../../test/ProxyWallet.t.sol)
 
-Typically a smart contract's logic (bytecode) cannot change once it's been deployed. For many people that is a good thing because it mitigates the developer's ability to change the rules out from under users. But more complex, fast moving protocols often need more flexibility. The proxy pattern allows developers to replace the logic of a contract even after it has been deployed. Proxy patterns are generally used to satisfy any of the following needs/scenarios:
+通常，智能合约的逻辑（字节码）一旦被部署就无法更改。对许多人来说，这是一件好事，因为它限制了开发者改变用户规则的能力。但更复杂、快速变化的协议通常需要更多的灵活性。代理模式允许开发者更改已经部署的合约的逻辑。总体来说，代理模式通常用于满足以下需求/场景：
 
-- **Iterative development**: By replacing the logic of a deployed contract in-place, you can add new features/functions to your contract without having to migrate users, allowances, or balances.
-- **Cheaper deployments**: If you find yourself deploying the same contract multiple times, using a proxy pattern can significantly reduce deployment costs because the logic bytecode is stored elsewhere and only needs to be deployed once.
-- **Code size limits**: Ethereum has a ~24KB maximum code size limit for a deployed contract, which is surprisingly easy to exceed with complex protocols. Logic in proxy architectures can be spread across multiple contracts so no single contract exceeds the bytecode size limit.
 
-## How It Works
+- **迭代开发**: 通过更改已发布合约的逻辑，你可以向合约添加新的特性或功能，而无需迁移用户、转账授权或者是相关资产。
+- **更便宜的部署**: 如果你发现自己多次部署相同的合约，使用代理模式可大幅度降低部署成本，因为代理合约代码简单体积小, 逻辑代码储存复用同一个份只需要部署一次。
+- **合约体积限制**: 以太坊对部署的合约的代码大小有约24KB的上限，对于复杂的协议来说很容易超过这个限制。在代理架构中，逻辑可以分布在几个合约中，所以可以绕过单个合约可能会超过字节码大小限制的问题
 
-Let's dive into what it takes to implement a basic proxy from scratch. The proxy pattern leverages two features of the EVM/solidity: delegatecalls and fallback functions.
+## 工作原理
+
+
+让我们深入了解一下实现基本代理所需要的步骤。代理模式利用了 EVM/Solidity 的两个特性：delegatecalls 和 fallback 函数。
 
 ### `delegatecall()`
-In solidity, a normal function call made to another contract compiles down to using either the `address.call()`  or `address.staticcall()` semantics. Both of these call types will execute the function in the context of the target contract, meaning it can only access its own state (address, storage, balances, etc).
+在 Solidity 中，对另一个合约的常规函数调用被编译为使用 `address.call()` 或 `address.staticcall()` 语义。这两种调用类型都将在目标合约的上下文中执行函数，这意味着它只能访问自己的状态（地址，存储，余额等）。
 
-But if we instead explicitly make a call using `address.delegatecall()`, it will execute the call with the code at `address` *but in the same state context as the caller*. This means any storage reads and writes actually operate on the caller's storage. The target contract will essentially assume the identity of the caller, also inheriting the same `address(this)`, ETH balance, and so on. So any external calls the logic contract makes will also appear as if they're coming from the caller itself. It's as if we replaced our own code with the target contract's code.
 
-### The Fallback Function
-Solidity allows you to define a `fallback()` function on your contract. Any calls to undefined functions will trigger this function. Take, for example:
+但是，如果我们明确使用 `address.delegatecall()` 进行调用，它将使用 `address` 的代码逻辑执行调用，但是却在调用者的状态上下文中执行。这意味着任何存储读取和写入实际上都在调用者的存储中操作。目标合约继承了调用者的 `address(this)`、ETH 余额等上下文。因此，逻辑合约作出的任何外部调用也将像是来自调用者本身。就好像我们用目标合约的代码替换了我们自己(调用者)的代码。
+
+
+### `Fallback` 函数
+Solidity 允许你在合约上定义一个 `fallback()` 函数。对合约上未定义的函数的调用都会触发此函数。例如：
 
 ```solidity
 function foo() external pure returns (string memory) {
@@ -31,10 +35,11 @@ fallback(bytes calldata callData) external returns (bytes memory rawResult) {
 }
 ```
 
-If you called `foo()` on the contract, it would return the string `"in foo()"`. But say you cast this contract's address as an ERC20 interface and tried to call `transferFrom()` on it. Because that function is not defined in the contract, the fallback will be triggered and the call would revert with `"in fallback()"`. The value of `callData` in that case would be the ABI-encoded call (function selector + arguments) to `transferFrom()`. If we wanted to return anything from the fallback, we could instead populate `rawResult` with the ABI-encoded return data and return it. 
+如果你在合约上调用 `foo()`，它会返回字符串 `"in foo()"`。但假设你将这个合约的地址转换成一个 ERC20 接口，并尝试在它上面调用 `transferFrom()`。由于该函数在合约中未定义，fallback 将被触发，调用将以 `"in fallback()"` 的错误信息抛出错误。在这种情况下，`callData` 的值将是对 `transferFrom()` 进行 ABI 编码的结果（函数选择器+参数）。如果我们想从 fallback 返回任何内容，我们可以用 ABI 编码的返回数据填充 `rawResult` 并返回。
 
-### Putting It Together
-With the proxy pattern, we deploy two contracts: a proxy contract and a logic contract. The logic contract is essentially your user-facing business contract as you would normally write it, but users *should not* interact with it directly. Instead users will interact with the proxy contract, which will forward any calls caught in the fallback to the logic contract using `delegatecall()`.
+
+### 结合起来
+使用代理模式，我们部署两个合约：一个代理合约和一个逻辑合约。逻辑合约本质上就是你通常编写的面向用户的业务合约，但用户 *不应该* 直接与它进行交互。相反，用户将与代理合约交互，代理合约将通过 使用 `delegatecall()` 将其调用传递给逻辑合约。
 
 ```
            call     ┌────────────────────┐              ┌────────────────────┐
@@ -52,7 +57,7 @@ User ───────────────►   Proxy Contract   │    
                     └────────────────────┘       (shared state)
 ```
 
-These proxy contracts are usually extremely lightweight, since forwarding calls from the fallback is all they really need to do. For example:
+代理合约通常非常轻量, 因为它们唯一需要实现的逻辑就是将调用通过 fallback 转发给逻辑合约. 比如:
 
 ```solidity
 contract Logic {
@@ -86,7 +91,7 @@ contract Proxy {
 }
 ```
 
-Now if we deploy `Proxy` with the address of an instance of `Logic`, we can treat the instance of `Proxy` as a separate instance of `Logic` and it will behave as such:
+如果我们依托某个逻辑合约部署代理合约, 那么其实可以把代理合约当成逻辑的合约的一个实例, 具体表现如下:
 
 ```solidity
 function test() external returns (string memory msg) {
@@ -104,10 +109,12 @@ function test() external returns (string memory msg) {
 }
 ```
 
-### Making Our Proxy Upgradeable
-Previously we had stored the logic contract address as a constant, `immutable` field, which embeds its value in the deployed bytecode of the proxy contract and cannot be changed. But we can make it a regular storage variable instead, which allows us to upgrade it later.
+### 使得代理可升级
 
-When doing so, we need to be *extremely cautious* with defining storage variables in the proxy contract because the compiler is not aware that the `Proxy` and `Logic` contracts will share the same storage context and could assign storage variables in `Logic` to locations that overlap those in `Proxy` (for more context, check out the [explicit storage buckets pattern](../explicit-storage-buckets/)). Specifically for storing the logic address, the recommended approach is to follow either the [EIP-1822](https://eips.ethereum.org/EIPS/eip-1822) or [EIP-1967](https://eips.ethereum.org/EIPS/eip-1967) specifications. Both require using a fixed, explicit (not compiler-assigned) storage slot to store the logic contract address, which we can access with some simple assembly. So to make our proxy conform to EIP-1967, we would do something like:
+先前我们将逻辑合约地址存储为常量，并使用 `immutable` 修饰该字段，它将其值嵌入到代理合约的已部署字节码中，无法更改。但其实，我们可以将其设为常规的存储变量，这样就可以后续升级它。
+
+
+在这样做时，我们需要 *极其小心地* 在代理合约中定义存储变量，因为编译器并不知道 `Proxy` 和 `Logic` 合约会共享相同的存储上下文，并可能将 `Logic` 中的存储变量分配到与 `Proxy` 中的位置重叠的位置（更多相关内容，请查看[显式存储桶模式](../explicit-storage-buckets/)）。存储逻辑合约地址建议的方法是遵循 [EIP-1822](https://eips.ethereum.org/EIPS/eip-1822) 或是 [EIP-1967](https://eips.ethereum.org/EIPS/eip-1967) 的规范。这两者都需要使用固定的、显式的（非编译器分配的）存储插槽来存储逻辑合约地址，我们可以用一些简单的 assembly 代码来获取它。所以如果要使得我们的 prox 代理能够适配 EIP-1967 ，我们会这样做：
 
 ```solidity
 address immutable owner;
@@ -143,18 +150,20 @@ function _setlogic(address logic) private {
 }
 ```
 
-Etherscan knows to look out for EIP-1967 style proxies and will show users the "read as proxy" and "write as proxy" tabs for interacting with your proxy contract using the logic contract's ABI.
+Etherscan 能够识别 EIP-1967 模式的代理，将显示"read as proxy" 和 "write as proxy" 的选项卡，用于使用逻辑合约的 ABI 与你的代理合约交互。
 
 ![etherscan-proxy](./etherscan-proxy.png)
 
-## Pitfalls
-As you can see, it's really not that difficult to implement a simple proxy pattern for your contracts. But while this pattern is extremely flexible and powerful, it's also been implicated in many hacks. To use it securely you need to be constantly mindful of the many risks it can introduce.
+## 值得注意的问题
+可以看到实现一个基本的代理模式并不难。虽然代理模式非常灵活和强大，但是许多黑客攻击都与他有关。所以为了安全地使用它，你需要始终注意它可能带来的许多风险。
 
-### Securing The Logic Contract(s)
-The logic contract oftentimes is just a regular contract, which someone could directly interact with. This usually doesn't matter because, when used this way, any state changes would only be made on the logic contract's storage/account, not the proxy contract. However, there is one state change that can adversely impact the proxy: a `selfdestruct()`. If someone is able to call `selfdestruct()` on the logic contract directly, the logic contract will be erased, and any proxy contracts that forward their calls to it will start reverting (or, worse, silently succeeding), effectively trapping any funds inside them. This is exactly what happened in the [parity wallet hack](https://blog.openzeppelin.com/on-the-parity-wallet-multisig-hack-405a8c12e8f7/).
+### 保护逻辑合约
 
-### Storage Layout
-Extreme care must be taken when upgrading the logic contract of a proxy to ensure that the storage layout remains perfectly compatible with the old logic contract. Changing the order in which storage variables are declared, or the order contracts are inherited, can result in the new logic contract reading and writing to a storage location that previously had an entirely different meaning. To illustrate:
+逻辑合约只是一个常规的合约，任何人都可以直接与之交互。通常这并不重要，因为直接使用逻辑合约时，任何状态更改都只会在逻辑合约的存储/账户上进行，而不会影响代理合约。然而，有一种状态改变可能对代理产生不利影响：`selfdestruct()`。如果有人能够直接在逻辑合约上调用 `selfdestruct()`，逻辑合约将发生自毁，任何将调用转发到它的代理合约将开始回滚（或者，更糟糕的是，静默成功），相关的资产将直接困在代理合约当中。这并不是空穴来风, 而是确有其事, 详见 [parity wallet hack](https://blog.openzeppelin.com/on-the-parity-wallet-multisig-hack-405a8c12e8f7/) 
+
+
+### 存储布局
+在升级代理的逻辑合约时，必须极其谨慎，以确保存储布局仍然完全兼容旧的逻辑合约。改变存储变量声明的顺序，或者改变合约继承的顺序，可能会导致新的逻辑合约读写到和之前完含义完全不同的存储位置, 如下例:
 
 ```solidity
 contract OldLogic {
@@ -182,19 +191,23 @@ contract NewLogic {
 }
 ```
 
-To mitigate this situation, as a general rule of thumb, only append new storage variables. Never delete, insert, or prepend them to the final storage layout in new versions of logic contracts. Or, alternatively, [don't rely on the compiler at all to pick your storage slots](./../explicit-storage-buckets/).
+为了避免上述情况, 最佳实践应该是只考虑新增变量而永远不在新的逻辑合约中删除, 插入已有的变量. 或者[压根不要依赖编译器为你分配卡槽位置](./../explicit-storage-buckets/)
 
-### (Re)Initialization
-A contract's constructor only gets called when that contract is being deployed, and will always execute in *that* contract's state context. If you need to prepare storage variables in your logic contract's constructor, those state changes will not be reflected in your proxy contract. To get around this, many proxy implementations will move constructor logic into an explicit initialization function that the proxy can explicitly delegatecall into, which will commit those state updates in the proxy's context.
+### 重新初始化
 
-Initialization functions carry some risk. Extreme care must be taken to ensure these initialization functions are guarded so that they cannot be called again. Otherwise someone could, for example, reinitialize your contract, replacing critical configuration options that grant them special privileges.
+合约的构造函数只在部署合约时被调用，并且总是在那个合约的状态上下文中执行。如果你需要在你的逻辑合约的构造函数中做一些变量的初始化工作，那么这些状态更改将不会反映在你的代理合约中。为了解决这个问题, 许多的代理合约实现中会将原本应该写在构造函数中的初始化逻辑移动到一个单独的初始化函数中, 这样代理合约就可以通过 `delegatecall` 的方式将这些状态的更新同步到自己身上
 
-### Operational Security
-The upgrade mechanism of a contract can and should be permissioned to an admin account. The admin account can completely change the logic behind a proxy, making for an easy rug, so that admin account can become extremely attractive for hackers to target. Often projects will put the admin account behind a multisig to mitigate the impact of a compromise, but that is only as secure as the practices followed by the multisig signers. As another line of defense, the upgrade function can be time-locked and monitored so that users and maintainers have time to respond to a malicious logic change.
+但是初始化函数也带来了一些风险, 比如需要注意确保这些初始化函数只能被调用一次, 否则的话有可能其他人可以通过重新初始化来替换掉你的关键配置以甚至给他们自己授予一些特殊的权限.
 
-## The Example
-The included [demo contracts](./ProxyWallet.sol) feature a proxified wallet whose original logic only worked with ETH but can be upgraded to a logic contract that can also work with ERC20 tokens. The [tests](../../test/ProxyWallet.t.sol) illustrate how to compose the contracts together.
+### 操作安全性
 
-## Resources
-- [OpenZeppelin's Basic Proxy contract](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Proxy.sol) and [some considerations around](https://docs.openzeppelin.com/upgrades-plugins/1.x/proxies) it. 
-- OpenZeppelin has "upgradeable" versions of many of its libraries, and [guide](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) on how to use them.
+合约的升级机制可以并且应该被限制到管理员账户。管理员账户可以完全改变代理背后的逻辑合约，基于管理员账户进行卷款跑路非常简单, 因而管理员账户很容易成为黑客目标。通常，项目会将管理员账户放在多签名背后，以降低被攻击的影响, 但这只有在多签名签署者遵循安全实践时才能提供安全保障。作为另一条防线，升级功能可以被时间锁定和监控，以便用户和维护者有时间响应恶意的逻辑更改。
+
+
+## 示例
+
+[示例代码](./ProxyWallet.sol) 实现了一个代理化的钱包，其初始逻辑只能支持 ETH 但可以升级为也支持 ERC20 代币的逻辑合约。[测试](../../test/ProxyWallet.t.sol) 展示了如何将合约组合在一起
+
+## 参考资料
+- [OpenZeppelin 基本的合约代码](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Proxy.sol) and [一些需要注意的问题](https://docs.openzeppelin.com/upgrades-plugins/1.x/proxies) it. 
+- OpenZeppelin 的许多 libraries 都有可升级版本, 以及关于如何使用他们的 [指南](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) 
