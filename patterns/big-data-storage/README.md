@@ -1,17 +1,17 @@
-# Big Data Storage
+# 较大数据的存储
 
-- [📜 Example Code](./OnChainPfp.sol)
-- [🐞 Tests](../../test/OnChainPfp.t.sol)
+- [📜 示例代码](./OnChainPfp.sol)
+- [🐞 测试](../../test/OnChainPfp.t.sol)
 
-When contracts need to store arbitrary data they will usually declare a `bytes` or `string` storage variable and write to it. This uses contract storage, which is straightforward and intuitive but can become prohibitively expensive for larger data. Contract storage is slot-based, charging 20k gas per word (32 bytes) of data to initialize for the first time. To store 256 bytes this way would cost 160k gas.
+当合约需要存储某些任意的数据的时候，通常的做法是声明一个`bytes` 或者 `string` 链上存储变量（storage variable）并写入。这样会使用此合约的存储空间，这个方式很直观且容易理解，但当需要存储较大数据的时候这种方式可能会很昂贵。智能合约的存储空间是插槽模式,每次初始化一个存储插槽空间（32字节大小）需要花费掉20k个gas单位。那么存储一个长度为256的bytes就会花费160k个gas单位。
 
-But if you don't need the ability to change the data, there's a cheaper on-chain location to store arbitrary data that contracts can still access.
+但如果你需要存储的是明确已知以后不会再需要改动其值的变量，那么在链上就还有另外一种较为便宜的存入数据的位置，并且这种存储同样可以让合约读取到被存入的数据。
 
 
-## Contract Bytecode
-The bytecode for a contract also lives on-chain, in a separate code storage location. This location is intended to hold the contract's executable bytecode, along with any compile-time constants and `immutable` variables. But there is a way to store arbitrary data in this code storage location as well.
+## 智能合约字节码
+每个已部署的智能合约的字节码同样是链上数据的一种，以一种与合约内变量所用的不同的空间存储。这个存储空间被用来存储合约的可执行字节码，编译时使用的常量，以及合约里被为声明为`immutable` 的变量。然而，有一种方法可以将任意数据同样存储在此类空间里。
 
-Unlike normal contract storage, data in code storage can only be set once, during contract initialization/creation. It is also limited to ~24KB. However, gas costs can be much lower when storing large data (several words). The cost to initialize data in code storage is a more complex formula and depends on your exact implementation, but you can roughly approximate it with:
+不同于常规的合约内数据存储规则，存在此类代码空间内的数据只能够在创建合约的时候被生成一次，一旦生成即固定不可改，并且受到与合约字节码相同的空间大小约束（24KB）。然而，这种存储花费的gas却可以比常规便宜许多，尤其体现在存储较大的数据的时候。此类存储产生的费用的计算方式较为复杂，并且与具体的部署执行细节直接相关，但大致上可以用如下的方式来估算花费：
 
 ```
 total_cost = 32k + mem_expansion_cost + code_deposit_cost
@@ -19,58 +19,58 @@ mem_expansion_cost = size * 3 + (size ** 2) / 512
 code_deposit_cost = 200 * size
 ```
 
-So, to store 256 bytes of data in contract bytecode would cost only 84k, compared to the 160k for conventional contract storage, which is almost half the cost! The savings go up as the size of the data increases.
+可见，存储一个大小为256的bytes数据大约需要花费84k个gas单位，几乎比常规存储方式所需的160k个单位节省了一半！需要存的数据越大，节省越多。
 
-## How It Works
-But how do we store arbitrary data (not code) in bytecode storage? During contract deployment, the constructor runs first. The constructor is part of a contract's initialization process, often setting up state variables. But what solidity abstracts away from you is that after the constructor runs, it also returns data that will make up the contract's permanent bytecode. This data is exactly what will get stored in the contract's code storage.
+## 如何利用
+但究竟我们应该怎样去利用这种方式去存储任意数据（非合约代码）呢？ 在合约被部署的时候，构造函数首先被执行。构造函数是合约被初始化的一部分，通常是用来给状态变量赋值。但是solidity没有在明面上展示给你的一件事情是，当构造函数被执行时，它会返回一个数据，此数据正是这个合约的永久性的可执行字节码，它将被存储在上述提到过的这个合约的代码存储空间中。
 
-By dropping into assembly, you can preempt the compiler's built-in return to return whatever data you want stored in code storage. 
+通过使用 `assembly` 你就可以对编译器内置的默认返回值进行修改来令它返回任何你想要的数据，这个数据即被存储在此合约的代码存储空间内。
 
 ```solidity
 contract StoreString {
     constructor(string memory s) {
-        // Store the string in the contract's code storage.
+        // 将这个s变量存储在此合约的代码空间中
         assembly {
             return(
-                add(s, 0x20), // start of return data
-                mload(s) // size of return data
+                add(s, 0x20), // 返回值的起始位置
+                mload(s) // 返回值的大小
             )
         }
     }
 }
 ```
 
-Afterwards, if you tried to access the deployed address' code data, you would get back the arbitrary data stored there. So to access that data again, you just need to remember the deployed address.
+随后，如果你去读取此合约被部署地址相应的代码数据，即会得到你当时指示其存储的那个任意的数据。注意，你必须要知道这个合约的部署地址才能够去获得那个数据。如下：
 
 ```solidity
 address(new StoreString("hello, world")).code // "hello, world" 
 ```
 
-## Preventing Accidental Execution
-Even though the data you're storing in code storage with this method is probably not actual bytecode, the EVM can't tell the difference. So *any* calls to the address will attempt to execute the data stored there as bytecode, starting with the first byte. It is possible that a sequence of starting arbitrary bytes is, intentionally or unintentionally, valid bytecode and could cause some meaningful interaction if executed. For example, if the data started with `33FF`, anyone could call the contract and it would self-destruct, taking the data with it. For this reason, it's a good idea to prefix the data with something that causes execution to halt. The `00` byte is a good candidate because it is also the `STOP` opcode, which ends execution immediately, but `FE` (`INVALID`) also works well.
+## 避免意料之外的代码执行
+尽管以此种方式所存储的数据大概率并非可被EVM执行的字节码，但是EVM本身是不知道这一点的。所以*任何*对此合约的调用都会尝试去执行你存在那里的数据因为它被EVM当作了可执行字节码，这个尝试会从第一个字节开始。那么，就有一定概率的可能性为，被存储在那里的数据的开头一系列bytes，不管是有意设计还是无意巧合，恰是一种可被EVM执行的有意义的字节码，那么他会被执行并产生某些后果。例如，如果存在那里的数据恰好以`33FF`开头，那么任何对此合约的调用都会执行合约的自我销毁，当然存在那里的数据也就被销毁了。出于这个原因，一种比较保险的处理方法是我们应当给我们想要存储的数据人为加上一个“开头数据”，令这种开头使EVM中断执行。`00`这个字节作为开头数据就是一个很好的例子，因为它同时也是意义为`STOP`的操作码，会令执行马上终止。另外一个例子，使用`FE` (意为`INVALID`的操作码)作为开端同样有效。
 
 ```solidity
 contract StoreString {
     constructor(string memory s) {
-        // Store the string in the contract's code storage.
-        // Prefix with STOP opcode to prevent execution.
+        // 将这个s变量存储在此合约的代码空间中
+        // 并给它加上一个意为`STOP`的操作码，令任何EVM的执行终止
         bytes memory p = abi.encodePacked(hex"00", s);
         assembly {
             return(
-                add(p, 0x20), // start of return data
-                mload(p) // size of return data
+                add(p, 0x20), // 返回值的起始位置
+                mload(p) // 返回值的大小
             )
         }
     }
 }
 ```
 
-But don't forget to discard this prefix when reading the data back later!
+切记当你以后去读取存储在这里的数据时，要将那个人为加上的无意义的“开头数据”舍弃掉！
 
-## The Demo
-The [demo](./OnChainPfp.sol) loosely implements an NFT which can be minted with a user-provided image that's stored permanently on-chain. The `mint()` function will trigger code storage of a base64-encoded PNG image. `tokenURI()` will later read the code data at the deployed address and will embed the image in the URI using [RFC3986](https://www.rfc-editor.org/rfc/rfc3986) semantics.
+## 示例
+[示例代码](./OnChainPfp.sol)（非严格ERC721）部署了一个NFT合约，可令用户铸造一个用户自己所提供的任意永久存于链上的图片作为元数据的NFT。`mint()` 函数会触发一个合约代码存储空间来存放Base64编码的PNG图像的代表数据。`tokenURI()` 函数随后会去那个合约地址的代码存储空间读取此数据，并使用语义 [RFC3986](https://www.rfc-editor.org/rfc/rfc3986) 将其代表的图像嵌入到URI中。
 
 
-## References
+## 参考资料
 - [SSTORE2 library](https://github.com/0xsequence/sstore2)
-    - A ready-to-use solidity library for various forms of code data storage, including a keyed variant that has predictable storage addresses.
+    - 一个便于使用的solidity库，关于多种对代码存储空间的利用方式，并且提供了一种可将任意`bytes32`变量作为key传入用来产生一个已知地址的代码存储空间的方式。

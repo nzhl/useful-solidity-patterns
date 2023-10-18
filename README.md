@@ -15,8 +15,8 @@
     - 一些精简, 有效的汇编技巧, 有助于节省 gas 同时绕开一些 Solidity 语言本身的限制
 - [代理模式基础](./patterns/basic-proxies)
     - 可升级合约相关的逻辑
-- [Big Data Storage (SSTORE2)](./patterns/big-data-storage)
-    - Cost efficient on-chain storage of multi-word data accessible to contracts.
+- [较大数据的存储 (SSTORE2)](./patterns/big-data-storage)
+    - 一种更加节省gas的利用链上合约代码存储空间来储存任意数据（并可被合约读取）的方法，对较大的多词数据尤为有效
 - [Commit + Reveal](./patterns/commit-reveal)
     - A two-step process for performing partially obscured on-chain actions that can't be front or back runned.
 - [EIP712 Signed Messages](./patterns/eip712-signed-messages)
