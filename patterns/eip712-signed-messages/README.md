@@ -13,9 +13,9 @@
 
 ## 案例分析: 投票
 
-Let's walk through what an implementation (contract + dapp) looks like in practice with a simple governance protocol. This protocol allows people to vote on-chain for some proposal identified by `proposalId`. For simplicity sake, we'll let anyone vote on any proposal ID and only count "yes" votes.
+我们通过一个简易的治理协议来展示一下分布式应用及其后端合约是如何工作的。这个协议允许人们针对某项提议通过其 `proposalId` 来发送链上投票。为了简化，这个协议允许任何人针对任何提议投票，并且只对赞成票来计数。
 
-First let's look at how a fully on-chain version would be implemented and iterate on that. The fully on-chain version has a `voteFor()` function which each voter must call directly to cast their vote for a proposal.
+首先我们来看一个完全在链上执行的合约版本，然后不断改进它。这一版本带有一个 `voteFor()` 函数，任何投票者都需要直接调用这个函数来进行投票操作。
 
 ```solidity
 mapping (uint256 => mapping (address => bool)) public hasVotedForProposalId;
@@ -24,10 +24,10 @@ mapping (uint256 => uint256) public yesVotesForProposalId;
 ...
 
 function voteFor(uint256 proposalId) external {
-    // Ensure the voter hasn't already voted on this proposal.
+    // 确保此人之前没有对这项提议投过票。
     require(!hasVotedForProposalId[proposalId][msg.sender], 'already voted');
     hasVotedForProposalId[proposalId][msg.sender] = true;
-    // Increase vote count for proposal.
+    // 增加这项提议的赞成数。
     ++yesVotesForProposalId[proposalId];
 }
 ```
