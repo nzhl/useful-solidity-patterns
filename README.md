@@ -25,8 +25,8 @@
     - Working with both compliant and non-compliant (which are more common than you think) ERC20 tokens.
 - [ERC20 (EIP-2612) Permit](./patterns/erc20-permit)
     - Perform an ERC20 approve and transfer in a *single* transaction.
-- [`eth_call` Tricks](./patterns/eth_call-tricks)
-    - Perform fast, complex queries of on-chain data and simulations with zero deployment cost using `eth_call`.
+- [`eth_call` 技巧](./patterns/eth_call-tricks)
+    - 使用 `eth_call` 执行快速且复杂的链上数据查询以及0成本的调用模拟
 - [Explicit Storage Buckets](./patterns/explicit-storage-buckets)
     - Safer, guaranteed non-overlapping storage for upgradeable contracts.
 - [Externally Owned Account Checks](./patterns/eoa-checks)
