@@ -1,17 +1,17 @@
-# EIP712 Signed Messages
+# EIP712签名
 
-- Example code:
-    - [📜 Conract](./MintVouchers.sol)
-    - [🌐 Frontend](https://codesandbox.io/s/compassionate-dust-jgeydc?file=/src/App.vue)
-    - [🐞 Contract Tests](../../test/MintVouchers.t.sol)
+- 示例代码:
+    - [📜 合约](./MintVouchers.sol)
+    - [🌐 前端](https://codesandbox.io/s/compassionate-dust-jgeydc?file=/src/App.vue)
+    - [🐞 测试](../../test/MintVouchers.t.sol)
 
-The [EIP712 standard](https://eips.ethereum.org/EIPS/eip-712) defines a way for a user to sign an arbitrary, human-readable JSON message with their private key. In Metamask, this manifests as a little popup listing all the fields in the message being signed:
+[EIP712标准](https://eips.ethereum.org/EIPS/eip-712)定义了一种令用户可以用其私钥对任何人类可理解的JSON格式的信息进行电子签名。在小狐狸钱包里，会弹出一个窗口并且列出这个信息的各项内容供用户在确认签名之前阅读：
 
 ![metamask EIP712 popup](./metamask-721.png)
 
- The resulting signature serves as a sort of off-chain attestation by the signer. This signature can be shared off-chain then later consumed on-chain (usually by another party) to perform an action with the user's consent.
+这个签名行为被视为用户在链下确认过被签署的信息内容。数字签名可以在链下被分享，并且以后被（其他角色）用在链上来执行某交易，此交易被认为已被签过名的用户钱包授权。
 
-## Case Study: Voting
+## 案例分析: 投票
 
 Let's walk through what an implementation (contract + dapp) looks like in practice with a simple governance protocol. This protocol allows people to vote on-chain for some proposal identified by `proposalId`. For simplicity sake, we'll let anyone vote on any proposal ID and only count "yes" votes.
 
