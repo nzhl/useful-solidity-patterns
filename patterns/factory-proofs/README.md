@@ -1,19 +1,19 @@
-# Factory Proofs
+# 工厂证明
 
-- [📜 Example Code](./FactoryProofs.sol)
-- [🐞 Tests](../../test/FactoryProofs.t.sol)
+- [📜 示例代码](./FactoryProofs.sol)
+- [🐞 测试](../../test/FactoryProofs.t.sol)
 
-Many protocols deploy multiple, interoperable contracts which are not known/established at launch. Well-known examples can be found amongst the various [Uniswap](https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Factory.sol#L23) versions and forks, which all deploy a distinct pool contract for each token pair. Within these protocols, these contracts are often given implicit trust to be well-behaved (e.g., the amount returned by a swap call is what you actually received).
+许多协议都部署了多个可互操作的合约，但这些合约在发布时并不为人所知/尚未建立。众所周知的例子包括各种 [Uniswap](https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Factory.sol#L23) 版本和分叉，它们都为每个代币对部署了不同的池合约。在这些协议中，这些合约通常被赋予隐含的信任，使其表现良好（例如，swap 调用返回的金额就是你实际收到的金额）。
 
-Another, more exotic/extreme example is buried deep within the 0x protocol, which has a concept of pluggable "transformer" contracts chosen by the caller [that will actually be `delegatecall`ed into](https://github.com/0xProject/protocol/blob/development/contracts/zero-ex/contracts/src/features/TransformERC20Feature.sol#L272). Obviously it's highly risky to `delegatecall` into arbitrary contracts so the protocol only allows contracts that have been deployed by a fixed address they control.
+另一个更奇特/更极端的例子深藏在 0x 协议中，它有一个可插拔的“转换器”合约的概念，由调用者选择，实际上会被 [`delegatecall` 调用](https://github.com/0xProject/protocol/blob/development/contracts/zero-ex/contracts/src/features/TransformERC20Feature.sol#L272)。显然，`delegatecall` 调用任意合约的风险很高，因此该协议只允许调用由其控制的固定地址部署的合约。
 
-Usually some kind of factory pattern is used to both deploy and validate the authenticity of a contract on-chain. The naive approach is just to always deploy through a factory contract and store a mapping of valid deployed addresses inside of it, which can be looked up later. This was the approach with Uniswap V1. However, this has some storage and indirection gas overhead associated with both deploying and validating.
+通常会使用某种工厂模式来部署和验证链上合约的真实性。最简单的方法是始终通过工厂合约进行部署，并在其中存储有效部署地址的映射，以便日后查询。Uniswap V1 采用的就是这种方法。不过，这种方法在部署和验证时都会产生一些存储和间接 gas 开销。
 
-## `CREATE2` Proofs
+## `CREATE2` 证明
 
-From Uniswap V2 onward, the `CREATE2` opcode was used by factories to deploy pool contracts, which meant pool addresses could be deterministic, provided the creation salt was unique for each one. Under `CREATE2` semantics, the address of a deployed contract will be given by:
+从 Uniswap V2 开始，工厂使用 `CREATE2` 操作码来部署池合约，这意味着池地址可以是确定的，前提是每个池的创建 salt 都是唯一的。在 `CREATE2` 语义中，已部署合约的地址将由以下内容给出：
 
-```solidity
+```soli
 address(keccak256(abi.encodePacked(
     bytes1('\xff'),
     address(deployer),
@@ -22,22 +22,21 @@ address(keccak256(abi.encodePacked(
 )))
 ```
 
-So long as you are given (or can derive) the unique salt for an instance of `DEPLOYED_CONTRACT`, you can simply perform this hash on-chain to validate that the address in question was deployed by `deployer` and can be trusted-- no storage lookups required!
+只要为 `DEPLOYED_CONTRACT` 实例提供（或可以获得）唯一的 salt，就可以简单地在链上执行此散列，以验证相关地址是否由`deployer`部署并可以信任--无需进行存储查找。
 
-## `CREATE` Proofs
+## `CREATE` 证明
 
-But what if you don't want to use a factory contract (`CREATE2` can only be performed by a contract), or maybe you don't really need fully deterministic addresses, or you're working with a legacy protocol/factory? You can still prove on-chain, without lookups, that a contract was deployed by a certain address if you know the account nonce of the deployer when it deployed the contract.
+但是，如果你不想使用工厂合约（`CREATE2` 只能由合约执行），或者你并不需要完全确定的地址，或者你正在使用传统协议/工厂，该怎么办？如果你知道部署者部署合约时的帐户 nonce，你仍然可以在链上证明合约是由某个地址部署的，而无需查找。
 
-This is possible because even `CREATE` addresses are also somewhat deterministic, though a user has less direct control over it than with `CREATE2`. Under `CREATE`, the only inputs to deriving a deployment address are (1) the deployer's address and (2) the deployer's account nonce at the time of deployment, which are simply RLP-encoded and hashed:
+之所以能做到这一点，是因为即使是 `CREATE` 地址也有一定的确定性，只是用户对它的直接控制比 `CREATE2` 要少。在 `CREATE` 下，生成部署地址的唯一输入是 (1) 部署者的地址和 (2) 部署时部署者的账户 nonce，这两个输入都是简单的 RLP 编码和哈希值：
 
 ```solidity
 // For how to implement rlpEncode, see: https://github.com/ethereum/wiki/wiki/RLP
 address(keccak256(rlpEncode(deployer, deployerAccountNonce)))
 ```
 
-For EOAs (externally owned accounts), the account nonce starts at `0` and increments for each transaction they send that gets mined. For smart contracts, the account nonce starts at `1` and increments for each successful call to `CREATE` they make. In either case, you can use the [`eth_getTransactionCount` JSONRPC command](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactioncount) on a provider/node to obtain the account nonce of an address at any block.
+对于 EOA（外部拥有的账户），账户 nonce 从 0 开始，每发送一笔挖矿的交易，账户 nonce 就递增一次。对于智能合约，账户 nonce 从 1 开始，每成功调用一次 `CREATE` 就递增一次。无论是哪种情况，你都可以在提供者/节点上使用 [`eth_getTransactionCount` JSONRPC 命令](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactioncount)来获取任意区块中某个地址的账户 nonce。
 
+## 示例
 
-## Example
-
-The [example code](./FactoryProofs.sol) provided here demonstrates how to validate both kinds of deployments on-chain. `verifyDeployedBy()` verifies an address was deployed by a deployer under `CREATE` opcode semantics and `verifySaltedDeployedBy()` verifies an address was deployed by a deployer under `CREATE2` semantics.
+这里提供的[示例代码](./FactoryProofs.sol)演示了如何在链上验证这两种部署。`verifyDeployedBy()` 用于验证部署者是否根据 `CREATE` 操作码语义部署了地址，而 `verifySaltedDeployedBy()` 用于验证部署者是否根据 `CREATE2` 语义部署了地址。
