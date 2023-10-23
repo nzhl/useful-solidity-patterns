@@ -27,16 +27,16 @@
     - Perform an ERC20 approve and transfer in a *single* transaction.
 - [`eth_call` 技巧](./patterns/eth_call-tricks)
     - 使用 `eth_call` 执行快速且复杂的链上数据查询以及0成本的调用模拟
-- [Explicit Storage Buckets](./patterns/explicit-storage-buckets)
-    - Safer, guaranteed non-overlapping storage for upgradeable contracts.
+- [显式存储桶](./patterns/explicit-storage-buckets)
+    - 为可升级合约提供更安全、有保证的非重叠存储。
 - [Externally Owned Account Checks](./patterns/eoa-checks)
     - The consequences of interacting with contracts vs regular wallets, and how to identify them.
-- [Factory Proofs](./patterns/factory-proofs)
-    - Proving on-chain that a contract was deployed by a trusted deployer.
+- [工厂证明](./patterns/factory-proofs)
+    - 在链上证明合约是由可信任的部署人部署的。
 - [Initializing Upgradeable Contracts](./patterns/initializing-upgradeable-contracts)
     - Methods to safely and efficiently initialize state for proxy contracts.
-- [Merkle Proofs](./patterns/merkle-proofs)
-    - Storage efficient method of proving membership to a potentially large fixed set.
+- [默克尔证明](./patterns/merkle-proofs)
+    - 证明潜在大型固定集合成员资格的高效存储方法。
 - [Multicall](./patterns/multicall)
     - Allow users to arbitrarily compose and perform multiple operations on your contract in a single transaction.
 - [NFT Receive Hooks](./patterns/nft-receive-hooks)
