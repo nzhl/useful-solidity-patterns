@@ -123,44 +123,44 @@ const {v, r, s} = ethers.utils.splitSignature(
 #### 优点: 不花gas的前端交互
 想象一下你仅需对一个链下消息进行签名来授权你对某种链上行为和其触发条件的同意。这个授权平时被存在链下，直至链上行为的触发条件已达成，这个授权会被他人用来传递给协议来执行你之前已同意的行为并无需你本人再次来操作什么。因为执行交易是别人发起的，所以你不用花钱儿付gas。
 
-#### 优点: Often costs users less gas overall
-This pattern often goes hand-in-hand with [off-chain storage](./off-chain-storage), because all the fields in a message get condensed down into a single hash. Yet another bonus with signed messages is there is usually no need to even commit any data on-chain until the message is consumed. The message is considered trustworthy due to it being signed.
+#### 优点: 总体来说用户更省gas
+这个方式很切合[链下数据存储](./off-chain-storage)的要求，因为消息中各项信息都汇集到一个哈希值里。加之，这个被签署过的消息带来的额外好处就是仅在需要的时候才会在链上写入数据。消息因为已经被签过字所以是可信的。
 
-#### PRO: Can batch actions from different users together
-Whoever executes the message can also batch it with other messages, performing all their actions in a single transaction.
+#### 优点: 归集所有交易统一处理
+所有的签过字的消息都可以被归集起来，在一个交易内统一处理。
 
-#### PRO: Off-chain scaling
-With off-chain messages, coordination and aggregation can be done off-chain and can leverage web2 hooks and data. Only the final settlement needs to happen on-chain.
+#### 优点: 利用链下规模化
+所有消息的统筹和归集都可以在链下进行，并可以利用Web2的一些现有优势。只有最后的交易实现那步需要上链。
 
-#### CON: Censorship risk
-Because signing a message doesn't mine a transaction, there is no on-chain record of it. The signature is typically shared between through traditional web2 channels, and often with a centralized component (a backend DB, for example). While no entity can forge a message signature on behalf of a user, they can choose not to share it with others. This creates a very real censorship risk.
+#### 缺点: 被审核处理的风险
+因为此签名非链上行为，它通常会在链下以传统的Web2渠道来传播和存放在某一中心化个体处（例如某个后端数据服务器）。虽然没有人能够篡改这个经过签名加密的消息内容，但是可以选择将其隐藏不示于人，令其不起作用。这是一种实打实的被中心化审核处理的风险。
 
-#### CON: Cancellations
-Once a message is signed, it cannot be un-signed. The only way to truly cancel a message is to do something on-chain. Typically protocols with cancel functions will simply mark the message hash as consumed/cancelled to prevent consuming it later. Another mitigation technique is to include an expiration field in the message, which is verified on-chain when consuming the message. It's cheaper to let short-lived messages expire and sign a new replacement than to a sign long-lived message and mine a cancellation transaction.
+#### 缺点: 可取消
+签名行为是不可逆的。唯一能够撤销某一行为的方法是在链上做一些反制行为。一些典型的协议，如带有取消功能，一种简单的实现就是将某消息标记为“已执行/已取消”之类来防止它以后被执行。另一种处理方式是在消息内加上一个过期时间戳，这个时间戳的值会在此消息的链上执行时被验证有效性。去做一个长期有效的消息，并在想要取消的时候发起一条取消交易的方式成本较高；而去做一个短期有效的消息，如果消息过期则发起一个新消息来替代已过期的旧的，这种方式显然成本要低。
 
-#### CON: Allowances/Custody
-When working with assets from outside of a protocol, users typically either need to deposit or grant an allowance to the protocol. The signer will usually not be the one executing the action, so protocols need existing access to their assets in order to move them on their behalf.
+#### 缺点: 分给额度/替代保管
+若交易涉及到此协议之外的资产，用户通常需要先将资产存在协议处，或划分给协议可处理特定数量自己的此种资产的额度。因为签字的用户不会是日后来发起执行交易的人，所以协议需要上述方式存在作为可执行的前提。
 
-## Notable Uses
+## 显著用途
 
-This is a fairly common pattern, particularly in defi, but it's making its way into other sectors as well.
+这种模式已经在Defi里很常见了，同时其他一些板块和领域也在逐渐采取它。
 
 
-- [0x](https://docs.0x.org/), [Opensea](https://support.opensea.io/hc/en-us/articles/4449355421075-What-does-a-typed-signature-request-look-like-) (both seaport and wyvern), [CoWSwap](https://docs.cow.fi/smart-contracts/settlement-contract/signature-schemes), etc.
-    - These protocols all essentially ask users to sign an off-chain limit order, using EIP712, which can get filled by a counter-party at a later time.
-- [Uniswap](https://github.com/Uniswap/governance/blob/master/contracts/GovernorAlpha.sol#L248) and [Compound](https://docs.compound.finance/v2/governance/#cast-vote-by-signature) Governance
-    - Members can vote and/or delegate their votes with an off-chain EIP712 message.
+- [0x](https://docs.0x.org/), [Opensea](https://support.opensea.io/hc/en-us/articles/4449355421075-What-does-a-typed-signature-request-look-like-) (seaport 和 wyvern), [CoWSwap](https://docs.cow.fi/smart-contracts/settlement-contract/signature-schemes)，等等。。。
+    - 这些协议均采用此种EIP712方式获取限价下单的授权，这个单子随后可以被对方卖家来发起执行。
+- [Uniswap](https://github.com/Uniswap/governance/blob/master/contracts/GovernorAlpha.sol#L248) 和 [Compound](https://docs.compound.finance/v2/governance/#cast-vote-by-signature) Governance
+    - 会员可以投票或委托投票权给他人，均用EIP712链下签名方式。
 - [Opensea Lazy-minting](https://opensea.io/blog/announcements/introducing-the-collection-manager/)
-    - Collection owners can sign EIP712 messages that authorize the mint of a token when the sale is made.
+    - 某NFT系列的所有者可以签EIP712来授权其他人，当买卖交易达成时，允许其铸造次被交易的通证。
 - [ERC20 Permit Extension](https://eips.ethereum.org/EIPS/eip-2612)
-    - A popular extension to the ERC20 spec that consumes a signed EIP712 message to grant an allowance, avoiding the usual two-step transaction flow.
+    - 这是一个很受欢迎的授权拓展，利用EIP712链下签名，授权他人使用己方资产额度的时候替代了Approve这一步需要花费gas的链上操作。
 
-## The Example
+## 例子
 
-The [provided demo](./MintVouchers.sol) is an ERC721 contract with restricted minting. The deployer can sign EIP712 messages (vouchers) defining a token ID and price that must be paid to mint it. Minters can redeem any of these vouchers and mint a token with the `mint()` command, so long as they also attach the correct amount of ETH. This also immediately pays the deployer the ETH attached. If the deployer changes their mind on a voucher which they've already distributed, they can call `cancel()` to prevent it from being used.
+[这个例子](./MintVouchers.sol)是一个限定了铸币权限的ERC721协议。协议的部署者可以通过签EIP712消息的方式来发“券”，这个券写明了一个通证号还有想要铸造此通证需要多少钱。用户可以选择兑换此券来发起一条交易施行铸币的权利，但需要他们交付在券里规定好的ETH数量。这个交易同时会将这些附上的ETH发送给部署者。如果他对于某一已经发出的券上所写的交易金额后悔了想做修改，那么他可以调用 `cancel()` 函数，这个券就不能被他人兑换了。
 
-The demo has two parts: [the contract](./MintVouchers.sol) and the [frontend](https://codesandbox.io/s/compassionate-dust-jgeydc?file=/src/App.vue), which is hosted on CodeSandbox. The frontend has the pre-built contract artifact embedded as an asset. After you've connected the frontend to your Metamask, it will let you deploy the contract, sign new vouchers, and redeem those vouchers all from one page.
+此例含有两个部分: [合约](./MintVouchers.sol) 和 [前端](https://codesandbox.io/s/compassionate-dust-jgeydc?file=/src/App.vue)运行在CodeSandbox上。这个前端已经整合了被预搭建好的合约主体。当前端与你的小狐狸钱包链接后，它会允许你部署合约，签字发布新的券，兑换签过字的券。这些功能都在同一页上。
 
-## Resources
-- [EIP712 spec](https://eips.ethereum.org/EIPS/eip-712)
-- [ethers.js Signer docs](https://docs.ethers.io/v5/single-page/#/v5/api/signer/-%23-Signer-signTypedData)
+## 资料
+- [EIP712相关信息](https://eips.ethereum.org/EIPS/eip-712)
+- [ethers.js Signer 文档](https://docs.ethers.io/v5/single-page/#/v5/api/signer/-%23-Signer-signTypedData)
