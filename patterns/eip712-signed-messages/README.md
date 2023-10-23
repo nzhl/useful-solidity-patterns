@@ -32,12 +32,12 @@ function voteFor(uint256 proposalId) external {
 }
 ```
 
-With EIP712, we can let people vote without paying gas. Voters sign an off-chain vote message, indicating the proposal ID they want to vote yes for. Someone else can batch these individual signatures up and submit them all at once to be counted on-chain with the `voteForBySignatures()` function. This function accepts corresponding arrays of voters, proposal IDs, and signature components (which are returned by the wallet provider). It loops over each element, doing the following:
+利用EIP712标准，就可以让用户无需花费gas来投票。投票者对一条链下的投票消息进行签名，这个消息表达了其想要对某项提议投赞成票的意愿。随后另外一角色可以通过调用 `voteForBySignatures()` 函数来将所有的投票签名进行归集并且一次性地计数到链上。这个函数接受的输入值为列表类型的投票者们地址，其所投的提议号，还有电子签名的各项组成部分。函数会针对每一个投票输入执行如下步骤：
 
-1. Ensure that user hasn't already voted.
-2. Compute the EIP712 type hash of the corresponding vote message (proposal ID).
-3. Check that the corresponding signature for that hash is signed by the voter, using the built-in `ecrecover()` precompile.
-4. Increase the votes for that proposal.
+1. 确保此人此前并未对此提议投过票。
+2. 计算对这条投票消息的EIP712型哈希值。
+3. 利用内置的 `ecrecover()` 预编译函数，通过提供的电子签名各项以及此投票消息的哈希值来计算得到签名者的地址，并校验此地址与提供的投票者地址是否一致来确认投票有效性。若投票者在应用前端所看到的投票信息与真实信息有任何不同（导致哈希值变化）或者传输过程中数字签名的任意项被篡改，那么这个计算都不会得到与已知一致的地址，验证失败，投票无效。
+4. 若验证通过，则链上增加相应提议的赞成数。
 
 ```solidity
 function voteForBySignatures(
@@ -60,25 +60,25 @@ function voteForBySignatures(
 }
 ```
 
-### The EIP712 Type Hash
+### EIP72型哈希
 
-The wallet provider (e.g., Metamask) will accept your message fields, condense it into a hash, then sign that hash with the user's private key. This hash must be computed in a specific way, according to the [EIP712 spec](https://eips.ethereum.org/EIPS/eip-712#specification) and ensures that messages from different protocols do not collide. Here we implement the `_getVoteHash()` function, used earlier, to compute the same hash on-chain.
+像小狐狸这样的钱包应用会接受消息的各项内容，计算其哈希并且用当前地址的私钥对这个哈希值进行签名。这里的哈希计算有其特定的方式，是根据[EIP712的要求](https://eips.ethereum.org/EIPS/eip-712#specification)来确保来自于不同协议的消息一定不会产生哈希碰撞。在这里我们用之前调用过的 `_getVoteHash()` 函数来在链上重新计算消息的哈希值。
 
 ```solidity
 function _getVoteHash(uint256 proposalId) private view returns (bytes32 hash) {
-    // Hash of the domain, identifying this protocol.
+    // 计算此协议所在域的哈希，应具有唯一性来指向此已部署的协议.
     bytes32 domainHash = keccak256(abi.encode(
         keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
-        // Name of your protocol
+        // 协议的名字
         keccak256('ExampleVotingContract'),
-        // Version of your protocol
+        // 协议版本
         keccak256('1.0.0'),
-        // Chain ID your contract is deployed on.
+        // 协议所在的链号
         block.chainid,
-        // Canonical address associated with your protocol.
+        // 此协议被部署的标准地址
         address(this)
     ));
-    // Hash of the message type and data.
+    // 此消息类型相关的哈希值
     bytes32 structHash = keccak256(abi.encode(
         keccak256('Vote(uint256 proposalId)'),
         proposalId
@@ -87,43 +87,43 @@ function _getVoteHash(uint256 proposalId) private view returns (bytes32 hash) {
 }
 ```
 
-Note that `domainHash` and message's type hash never change, so you could (and should) compute them once and store them in a constant.
+ `domainHash` 和消息类型的哈希值是不会更改的，所以你可以（并应当）用常量来存放它们。
 
-### Getting Signatures From Users
+### 从用户处获取投票签名
 
-On the frontend side, our page needs to ask the connected wallet provider to generate a signature for a vote message. With ethers, we can use the [`Signer._signTypedData()`](https://docs.ethers.io/v5/single-page/#/v5/api/signer/-%23-Signer-signTypedData) method on a Signer instance for the active wallet. We need to pass in:
+在前端，我们的应用会请求已链接的钱包应用生成一个对投票消息的电子签名。可以使用`ethers`库里的[`Signer._signTypedData()`](https://docs.ethers.io/v5/single-page/#/v5/api/signer/-%23-Signer-signTypedData)方式对一个钱包建立的“Signer”实例发起这样的请求。需要传入的变量是：
 
-1. A domain object, matching the fields used by the domain computation in `_getVoteHash()`.
-2. A dictionary of EIP712 type definitions used by our message, with the last entry being our (root) message type. This matches the message type in `_getVoteHash()`.
-3. An object defining the values for each field in our message. In this case, we only have one field, `proposalId`.
+1. 域对象，其各项内容要与 `_getVoteHash()` 中所使用的相一致。
+2. 消息里包含的各项EIP712定义类型的键值表示，最后一项应是我们的根消息类型，要与 `_getVoteHash()` 中所使用的相一致。
+3. 一个对象来提供消息中的各项所需值。在我们的例子中的消息仅需要一项， `proposalId`。
 
 ```js
-// provider is connected to metamask.
+// 小狐狸钱包已连接。
 const {v, r, s} = ethers.utils.splitSignature(
     await provider.getSigner()._signTypedData(
-        // Domain
+        // 域
         {
             name: 'ExampleVotingContract',
             version: '1.0.0',
-            chainId: 1, // For Ethereum mainnet
+            chainId: 1, // 以太坊L1主网
             verifyingContract: DEPLOYED_VOTING_CONTRACT_ADDRESS,
         },
-        // Types
+        // 型
         [ { Vote: [ { name: 'proposalId', type: 'uint256' } ] } ],
-        // Message
+        // 消息
         { proposalId: YOUR_PROPOSAL_ID },
     ),
 );
 ```
 
-This will trigger a popup for the user to sign the message `proposalId: YOUR_PROPOSAL_ID` and return the concatenated signature components as a hex string. We use `splitSignature()` to break it up into the `v`, `r`, and `s` components needed by `voteForBySignatures()`.
+这样则会弹出一个窗口请求用户对消息 `proposalId: YOUR_PROPOSAL_ID` 进行签名，并且以串联16进制字符串的形式返回电子签名的各项内容。我们使用 `splitSignature()` 来解构这个字符串为 `v`， `r`， 和 `s` 三项内容供 `voteForBySignatures()`使用。
 
-## Pros and Cons
+## 优缺点
 
-#### PRO: Gas-less UX
-Imagine signing an off-chain message for a protocol that signals you want to perform an action when certain on-chain conditions are met. This message can sit idly off-chain until those conditions are met then someone else can pass that message into the protocol to perform the on-chain action without your intervention. Because someone else submitted it, you never had to pay any gas.
+#### 优点: 不花gas的前端交互
+想象一下你仅需对一个链下消息进行签名来授权你对某种链上行为和其触发条件的同意。这个授权平时被存在链下，直至链上行为的触发条件已达成，这个授权会被他人用来传递给协议来执行你之前已同意的行为并无需你本人再次来操作什么。因为执行交易是别人发起的，所以你不用花钱儿付gas。
 
-#### PRO: Often costs users less gas overall
+#### 优点: Often costs users less gas overall
 This pattern often goes hand-in-hand with [off-chain storage](./off-chain-storage), because all the fields in a message get condensed down into a single hash. Yet another bonus with signed messages is there is usually no need to even commit any data on-chain until the message is consumed. The message is considered trustworthy due to it being signed.
 
 #### PRO: Can batch actions from different users together
