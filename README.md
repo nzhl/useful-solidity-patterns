@@ -41,8 +41,8 @@
     - Allow users to arbitrarily compose and perform multiple operations on your contract in a single transaction.
 - [NFT Receive Hooks](./patterns/nft-receive-hooks)
     - Use ERC721/ERC1155 transfer callbacks to avoid having users set an allowance in advance.
-- [Off-Chain Storage](./patterns/off-chain-storage)
-    - Reduce gas costs tremendously by moving contract state off-chain.
+- [链下存储](./patterns/off-chain-storage)
+    - 通过将合约状态移出链下，极大地降低 gas 成本。
 - [OnlyDelegateCall / NoDelegateCall](./patterns/only-delegatecall-no-delegatecall/)
     - Restrict functions from being called from only within in a delegatecall context or not.
 - [Packing Storage](./patterns/packing-storage)

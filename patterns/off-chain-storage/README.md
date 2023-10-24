@@ -1,48 +1,48 @@
-# Off-Chain Storage
+# 链下存储
 
-- [📜 Example Code](./OffChainAuction.sol)
-- [🐞 Tests](../../test/OffChainAuction.t.sol)
+- [📜 示例代码](./OffChainAuction.sol)
+- [🐞 测试](../../test/OffChainAuction.t.sol)
 
-Storage operations often make up the bulk of smart contract execution costs. Even trivial protocols typically need to track multiple states between interactions, which naively requires writing and reading many times to on-chain/contract storage. As a general rule of thumb in EVM land, writing a non-zero value to an empty (zero) slot costs 20k, updating it costs 5k, and reading it can cost between 100-2.1k (thanks, [EIP-2929](https://eips.ethereum.org/EIPS/eip-2929)), so you can see how quickly these things can add up.
+存储操作往往占据大部分的智能合约执行成本。即使是那些需要在交互时跟踪多种状态量的简单协议，也需要对链上/合约存储进行多次写入和读取。按照EVM领域的一个经验法则，向空（零）槽写入非零值的成本为20k，更新成本为5k，读取成本在100-2.1k之间（感谢[EIP-2929](https://eips.ethereum.org/EIPS/eip-2929)），因此您可以看到这些成本是如何快速累积的。
 
-There are many gas mitigation strategies around on-chain storage, but there's no denying that the single, most effective way to reduce storage costs is simply not to store things on-chain at all. 😉
+围绕链上存储有许多减少gas消耗的策略，但不可否认的是，减少存储成本的单一最有效方法就是根本不在链上存储东西。😉
 
-## Off-Chain Storage Basics
+## 链下存储基础
+链下存储的理念实际上是采用混合方。我们只在链上存储合约状态的*哈希值*。在链下跟踪完整状态，并在与合约交互时将其传递回来。因此，与通常的内联声明每个存储变量的方式不同，我们改为：
 
-The idea behind off-chain storage is actually to take a hybrid approach, where we only store *the hash* of our contract's state on-chain, track the full state off-chain, and pass back it in when interacting with our contract. So instead of the usual way of declaring each storage variable inline, we instead:
+1. 在"状态对象"struct中声明状态字段。
+2. 将状态对象的哈希值存储在链上。
+3. 要求用户在依赖状态的每次交互中传入完整的状态对象。
+4. 验证传入的状态对象的哈希与我们存储的哈希是否匹配。
+5. 对于需要读取这些存储字段的交互：
+    1. 直接从`calldata`或`memory`读取数据，与从存储中读取相比，这种方式成本非常低廉。
+6. 对于需要写入这些存储字段的交互：
+    1. 根据需要,更新在（内存中的）状态对象中的字段。
+    2. 计算新的状态对象哈希并更新链上哈希。
+    3. 以事件的形式发出（和/或返回）更新后的状态对象，这样用户可以获取它并将其传递到下一个交互中。
 
-1. Declare state fields in a "state object" `struct` instead.
-2. Store the hash of the state object on-chain.
-3. Require users to pass in the full state object for any interactions that rely on state.
-4. Validate that the hash of the passed in state object matches our stored hash.
-5. For interactions that need to read those storage fields:
-    1. Just read it directly from state object in call data or memory, which is very cheap compared to reading from storage.
-4. For interactions that need to write to those storage fields:
-    1. Update fields in the (in-memory) state object as necessary.
-    2. Compute the new hash of the state object and update the on-chain hash.
-    3. Emit (and/or return) the updated state object in an event so users can source it and pass it into the their next interaction.
+采用这种方法，我们有可能在每次交互时将多次存储读写操作合并为只进行一次操作。
 
-With this approach we can potentially collapse several storage reads and writes into just a single one per interaction.
+## 示例：NFT拍卖行
 
-## Example: NFT Auction House
+提供的[示例](./OffChainAuction.sol) 是一个简单的 NFT（ERC721）拍卖行协议，利用了每个拍卖的链下状态。用户流程如下：
 
-The provided [example](./OffChainAuction.sol) is a simple NFT (ERC721) auction house protocol that utilizes off-chain state per auction. The user flow is:
+- 卖家调用 `createAuction()` 并传入拍卖参数（NFT、持续时间、最低出价等）。
+    - 合约接管 NFT。
+    - 选择一个新的 `auctionId`，并用提供的参数和状态在内存中创建一个关联的 `AuctionState` 对象，并用来跟踪拍卖进展。
+    - 存储 `AuctionState` 的哈希，以 `auctionId` 为索引。
+    - 发出完整的 `AuctionState` 对象。 
+- 买家传入完整的 `AuctionState` 对象，调用 `bid()` 进行ETH竞标。 
+- 任何人都可以调用 `settle()` 来完成拍卖（在拍卖过期或完成后），同样需要传入完整的 `AuctionState` 对象。
+    - 在 `bid()` 和 `settle()` 中，会对 `AuctionState` 对象进行哈希并与该 `auctionId` 的对应的哈希值进行对比检查。 
+    - 所有逻辑都只是对内存中的 `AuctionState` 对象进行读取和写入，这是成本较低的操作。
+    - 在返回之前，用更新后的状态对象的哈希覆盖该 `auctionId` 对应的链上状态对象哈希。 
+    - 发出包含完整更新的 `AuctionState` 对象的事件。
 
-- Sellers call `createAuction()` with the auction parameters (NFT, duration, minimum bid, etc).
-    - The contract takes custody of the NFT.
-    - A new `auctionId` is chosen and an associated `AuctionState` object is created in-memory with the provided parameters and state to track auction progress.
-    - Store the hash of the `AuctionState`, indexed by `auctionId`.
-    - Emit the full `AuctionState` object.
-- Buyers call `bid()` to place an ETH bid, passing in the full `AuctionState` object.
-- Anyone can call `settle()` to finalize an auction (after it has expired or completed), also passing in the full `AuctionState` object.
-    - In both `bid()` and `settle()`, the `AuctionState` object is hashed and checked against the stored hash for that `auctionId`.
-    - All logic just reads from and writes to the in-memory `AuctionState` object, which is cheap.
-    - Before returning, overwrite the on-chain state object hash for that `auctionId` with the updated state object's hash.
-    - Emit the full, updated `AuctionState` object in an event.
+### 对比链上方案
 
-### Comparing to the Naive Solution
+拍卖行合约*每次拍卖*跟踪以下8个状态变量：
 
-The auction house contract tracks the following 8 state variables *per auction*:
 
 ```solidity
 IERC721 token;
@@ -54,21 +54,30 @@ uint256 duration;
 uint256 topBid;
 address payable topBidder;
 ```
+如果这些存储变量全部存储在链上，将它们一起初始化将花费 `8 * 20k = 160k` gas，并且之后每次更新将花费 `8 * 5k = 40k` gas。通过将它们合并为单个哈希，我们将这些成本降低了8倍（现在分别为 `20k` 和 `5k`）！
 
-Had these storage variables been stored entirely on-chain, to initialize them all together would cost `8 * 20k = 160k` gas and `8 * 5k = 40k` gas to later update. By collapsing them into a single hash, we drop that cost down by a factor of 8 (now `20k` and `5k` respectively)!
 
-## Caveats
+## 注意
 
-While there are massive efficiency gains possible from this approach, relying on off-chain data has some notable disadvantages and concerns.
+虽然这种方法可能带来巨大的效率提升，但依赖链下数据也有一些值得注意的缺点和问题。
 
-#### Infra Burden
-Since your contract no longer holds the full state variables in storage, your dapp will need some kind of off-chain infrastructure to fetch the full state objects for contract interactions. Fortunately, because we emit events containing the full object, it's fairly trivial to use something like `eth_getLogs` on an archive node (e.g., Alchemy) to grab the latest state object. Without access to an archive node, you can spin up a service that consumes events as they happen and caches the objects.
 
-#### Composability
-Other contracts can't build on top of your protocol from a purely on-chain context. The initiating EOA will need to provide the contract with valid off-chain state object(s). Depending on where in the funnel your protocol sits, this pattern might not be as disruptive as it sounds, since many protocols (particularly in defi) already rely on an off-chain component for efficient usage (e.g., Uniswap pool routing).
+#### 基础设备负担
 
-#### TX Collisions / Stale State
-If interactions needing the same state objects are frequent enough, it's possible that two pending transactions will attempt to update/interact with the same state object, causing the second one to fail because the state hash will no longer match what is stored. One way to mitigate against this is to break up your state objects into groups that frequently change together so unrelated interactions don't impact each other's state. This can also be done intentionally to grief other users. In the auction example, the current highest could maintain their top bid by frontrunning higher bidders with 1 wei increments. An improved version might require successive bids to have a minimum % increment to create a disincentivizing cost for this behavior.
+由于你的合约不再将完整的状态变量存储在存储器中，您的 dapp 将需要某些链下基础架构来获取合约交互的完整状态对象。幸运的是，因为我们发出包含完整对象的事件，在存档节点（例如，Alchemy）使用类似 `eth_getLogs` 的方法上获取最新状态对象相对来说是相当简单的。如果没有存档节点的访问权限，您可以启动一个服务来在事件发生时消费并缓存这些对象。
 
-#### State Object Constraints
-We hash the state object in every function that needs it. This comes with some cost as well, which grows as the state object size increases. It's not a good idea to store large arrays in your state object for this reason, but you can potentially use [merkle proofs](../merkle-proofs) to achieve the same effect in constant space. Additionally, mappings are a storage-only construct that can't be easily encoded in an off-chain state object, though you may be able to invert your data structures to get around this (e.g., use a mapping of state objects instead of a state object with a mapping).
+
+#### 可组合性
+
+其他合约无法在纯链上环境中构建在您的协议之上。发起交易的外部账户将需要向合约提供有效的链下状态对象。根据您的协议在整个流程中所处的位置，这种模式可能并没有听起来那么破坏性，因为许多协议（尤其是在 DeFi 领域）已经依赖于链下组件以实现高效的使用（例如，Uniswap 池路由）。
+
+
+
+#### 交易冲突 / 状态过期
+
+如果需要相同状态对象的交互足够频繁，那么可能会出现两个挂起的交易尝试更新/与同一状态对象交互的情况，这会导致第二个交易失败，因为状态哈希将不再与存储的哈希值匹配。缓解这个现象的一种方法是将您的状态对象分成按照频繁一起修改进行分组，这样不相关的交互就不会影响彼此的状态。这也可以是有意为之，以损害其他用户。在拍卖示例中，当前最高出价者可以通过使用超出更高出价者1 wei增量的方式来保持其最高出价。改进的版本可能需要连续的出价有一个最小的百分比增量，以对这种行为产生抑制成本。
+
+
+#### 状态对象约束
+
+我们在每个需要状态对象的函数中对其进行哈希处理。这也带来一些成本，随着状态对象大小的增加而增加。出于这个原因，不建议在状态对象中存储大型数组，但是您可以隐式地使用 [merkle proofs](../merkle-proofs) 以在恒定空间内实现相同效果。此外，映射是仅限`storage`的结构，不容易在链下状态对象中编码，尽管您可以通过翻转数据结构来规避这一问题（例如，使用状态对象的映射而不是具有映射的状态对象）。
