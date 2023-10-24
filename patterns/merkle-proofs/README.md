@@ -1,53 +1,53 @@
-# Merkle Proofs
+# 默克尔证明
 
-- [📜 Example Code](./MerkleProofs.sol)
-- [🐞 Tests](../../test/MerkleProofs.t.sol)
+- [📜 示例代码](./MerkleProofs.sol)
+- [🐞 测试](../../test/MerkleProofs.t.sol)
 
-Oftentimes protocols need to verify membership of something to within a known set. Naively you could store all valid values on-chain as a mapping. This approach has decent efficiency when verifying membership since it only takes a single storage slot read. However, committing that data on-chain can be extremely costly, especially for large sets. Take, for example, an airdrop, where there are typically thousands of eligible recipients. To store 1000 addresses in a mapping would cost upwards of 20M gas!
+很多时候，协议需要验证某项内容是否属于某个已知集合。天真地认为，可以将所有有效值作为 mapping 存储在链上。这种方法只需读取一个存储槽，因此在验证成员资格时效率很高。但是，在链上提交这类数据的成本会非常高，尤其是对于大型数据集。以空投为例，通常会有数千个符合条件的接收者。如果要在 mapping 中存储 1000 个地址，成本将高达 20M gas！
 
-## Leveraging Hashes
+## 利用哈希值
 
-We can make an improvement on the naive approach, avoiding most of the cost of on-chain storage, if we:
+如果我们采取以下措施，就能改进传统方法，避免链上存储的大部分成本：
 
-1. Only store the hash of the entire set on-chain, e.g., `keccak256(abi.encode([...SET_ITEMS]))`.
-2. When we need to check membership, also  require the caller to pass in the entire set into the call.
-3. Ensure the hash of the set that was passed in matches our stored hash.
-4. Iterate over the set to find the item in question.
+1. 只在链上存储整个集合的哈希值，例如 `keccak256(abi.encode([...SET_ITEMS]))`。
+1. 当我们需要检查成员资格时，也要求调用者在调用中传递整个集合。
+1. 确保传入的集合哈希值与我们存储的哈希值相匹配。
+1. 对集合进行遍历，找到有问题的 item。
 
-This works well for small sets but can quickly become untenable if the set becomes large because it demands iteration that grows linearly with the set. For potentially large sets, we need a solution with better scaling.
+这种方法适用于小型数据集，但如果数据集变大，这种方法很快就会难以为继，因为它要求迭代次数与集合成线性增长。对于潜在的大型集合，我们需要一种扩展性更好的解决方案。
 
-## Merkle Trees
+## 默克尔树
 
-Merkle trees are the underlying data structure being tested in a merkle proof, and some form of them underpins many blockchains. [Bitcoin](https://dev-notes.eu/2019/09/compute-bitcoin-merkle-root) famously condenses all transactions in a block into the sole root of a merkle tree.
+默克尔树是默克尔证明中测试的底层数据结构，许多区块链都以某种形式支撑着默克尔树。[比特币](https://dev-notes.eu/2019/09/compute-bitcoin-merkle-root)将一个区块中的所有交易都浓缩在一棵默克尔树的唯一树根中，这一点非常有名。
 
-In the simple case, merkle trees are a form of binary tree, where each leaf node holds the hash of an item in the set and each non-leaf node holds the hash of its two children.
+简单来说，默克尔树是一种二叉树，其中每个叶子节点都保存了集合中一个数据的哈希值，每个非叶子节点则保存其两个子节点的哈希值。
 
 ![simple merkle tree](./merkle-tree.png)
 
-## Merkle Proofs
+## 默克尔证明
 
-Like our hash-based solution, with merkle proofs we will still store a single hash on-chain to represent the entire set: the root hash of the merkle tree. We will also require certain interactions with our contract to pass in extra data to establish proof something belongs to the set, but thanks to the hierarchical nature of merkle trees, we won't need to be provided with the entire set this time.
+与基于哈希值的解决方案一样，通过默克尔证明，我们仍将在链上存储一个哈希值来代表整个集合：默克尔树的根哈希值。我们还需要与我们的合约进行特定的交互，以传递额外的数据来证明某物属于该集合，但由于默克尔树的分层性质，这次我们不需要提供整个集合。
 
-To prove something belongs to a merkle tree we just need to be able to derive the merkle root, and check that it matches the one we have stored. We accept the item in question and the hash-value of any tree neighbors we would encounter as we hash our way up to the merkle root. Since a binary tree has `log2(N)` levels, our proof only has logarithmic complexity scaling.
+要证明某项内容属于默克尔树，我们只需推导出默克尔树的根，并检查它是否与我们存储的内容相匹配。我们接受相关 item，以及我们在寻找默克尔根时会遇到的任何树节点的相邻节点的哈希值。由于二叉树有 `log2(N)` 层，因此我们的证明只需对数复杂度。
 
-To illustrate, given the merkle tree provided earlier, we can prove `item2` belongs to the merkle tree by deriving the root (`N0`). To do this we only need `item2` and the hash-values of `N1` and `N6`:
+举例说明，在前面提供的默克尔树中，我们可以通过推导根 (`N0`) 来证明 `item2` 属于默克尔树。为此，我们只需要 `item2` 以及 `N1` 和 `N6` 的哈希值：
 
 ![merkle-proof](./merkle-proof.png)
 
-## Real World Usage
+## 真实使用情况
 
-Specifically among smart contracts, merkle proofs are typically used in cases where the upper bound on a set is either prohibitively large or unknown/unlimited.
+特别是在智能合约中，默克尔证明通常用于集合上限过大或未知/无限的情况。
 
-- Airdrops (merkle-drops) and restricted mints often use merkle roots. Among the first, high visibility merkle-drops was the [UNI airdrop](https://github.com/Uniswap/merkle-distributor/blob/master/contracts/MerkleDistributor.sol).
-- OpenZeppelin has a convenient [library](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/MerkleProof.sol) that you can simply import into your contracts to consume merkle proofs.
-- Fractional V2 uses merkle proofs in their [vaults](https://docs.fractional.art/fractional-v2-1/smart-contracts/vault/vault) to restrict what functions can be called.
+- 空投（默克尔空投）和限制性铸币厂经常使用默克尔根。[UNI 空投](https://github.com/Uniswap/merkle-distributor/blob/master/contracts/MerkleDistributor.sol)是第一批高知名度的默克尔空投之一。
+- OpenZeppelin 有一个方便的[库](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/MerkleProof.sol)，你只需将其导入到你的合约中，即可使用默克尔证明。
+- Fractional V2 在其[保险库](https://docs.fractional.art/fractional-v2-1/smart-contracts/vault/vault)中使用默克尔证明来限制可调用的函数。
 
-## Downsides
+## 缺点
 
-While proving a merkle root is relatively cheap, computing the canonical merkle root (the initial hash) isn't, since it has to traverse the *entire* tree. So this computation is typically done off-chain and passed into the smart contract for immediate storage. This process obviously implies some kind of trusted setup. For some applications, this centralization is an acceptable tradeoff . One silver lining is that the provided root hash can be independently verified as honest so long as the authority also shares the entire set because anyone can use it to derive the root hash themselves.
+虽然证明默克尔根的成本相对较低，但计算典型默克尔根（初始哈希值）的成本却不低，因为它必须遍历整棵树。因此，这种计算通常在链外完成，并传入智能合约中立即存储。这个过程显然意味着某种可信的设置。对于某些应用来说，这种集中化是一种可以接受的权衡。好的一面是，只要授权机构也共享整套数据，所提供的根哈希值就可以独立验证是否真实，因为任何人都可以使用它自己推导出根哈希值。
 
-## Example
+## 示例
 
-The provided [example](./MerkleProofs.sol) implements an airdrop (`MerkleDrop`) using merkle proofs. A merkle tree is constructed using the hash of each recipient address + claim amount to populate the leaves. Notably, this specific merkle tree implementation is actually a "sparse merkle tree," which improves on the space complexity of a vanilla merkle tree by replacing missing (unused) subtrees with the 0 value instead of a real hash. This saves us from having to create a tree with a power of 2 number of leaves.
+所提供的[示例](https://github.com/nzhl/useful-solidity-patterns/blob/main/patterns/merkle-proofs/MerkleProofs.sol)使用默克尔证明实现了空投（`MerkleDrop`）。使用每个接收者地址的哈希值 + 索赔金额构建一棵默克尔树，填充树叶。值得注意的是，这种特定的默克尔树实现实际上是一种"稀疏默克尔树"，它通过用 0 值代替真实哈希值来替换缺失（未使用）的子树，从而提高了普通默克尔树的空间复杂度。这样，我们就不必创建叶节点数量为 2 的次幂的树了。
 
-Included is also a utility contract (`MerkleDropHelper`) that can construct a merkle tree and generate a proof from it. Normally this would be implemented as an off-chain library but is provided in solidity for a consistent reading experience.
+此外，我们还提供了一个实用合约（`MerkleDropHelper`），它可以构建一棵默克尔树，并从中生成一个证明。通常这将作为一个链外库实现，但为了获得更好的阅读体验，我们在 solidity 中提供了这个库。
