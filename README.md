@@ -19,8 +19,8 @@
     - 一种更加节省gas的利用链上合约代码存储空间来储存任意数据（并可被合约读取）的方法，对较大的多词数据尤为有效
 - [先提交 + 再揭晓](./patterns/commit-reveal)
     - 用一种“分两步走”的交易处理模式来产生“半模糊”的链上行为，用来防止抢跑交易和跟随交易。
-- [EIP712 Signed Messages](./patterns/eip712-signed-messages)
-    - Human-readable off-chain messages that can be consumed on-chain.
+- [EIP712链下消息签名](./patterns/eip712-signed-messages)
+    - 可供人理解的JSON格式的信息在链下被签名，随后可在链上执行。
 - [ERC20 (In)Compatibility](./patterns/erc20-compatibility)
     - Working with both compliant and non-compliant (which are more common than you think) ERC20 tokens.
 - [ERC20 (EIP-2612) Permit](./patterns/erc20-permit)
