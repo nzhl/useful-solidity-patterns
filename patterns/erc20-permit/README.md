@@ -86,5 +86,5 @@ forge test -vvv --match-path test/PermitSwap.t.sol --fork-url $YOUR_RPC_URL
 ```
 
 ## 参考资料
-- [EIP-2612 Spec](https://eips.ethereum.org/EIPS/eip-2612)
+- [EIP-2612 各项细则](https://eips.ethereum.org/EIPS/eip-2612)
 - 如果你想要部署一个ERC20代币并且想利用这个授权许可的模式，[OpenZeppelin有一个可将其实现的合约](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/extensions/draft-ERC20Permit.sol)你可以用来继承。
