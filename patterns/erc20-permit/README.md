@@ -7,12 +7,12 @@
 
 [EIP-2612](https://eips.ethereum.org/EIPS/eip-2612)定义一种ERC20标准的拓展来允许用户对链下消息进行签名，则协议可立即使用此签名在链上获得对资产的授权使用额度。这意味着从用户那头只需要发起一个与协议交互的交易即可。得益于这种更高效的交互方式，协议可以每次都仅请求恰好所需的金额数量授权用来交互，安全上用户也会更加安心。
 
-## User Experience
-What does this pattern look like for users? The frontend will instruct the wallet to display a prompt with a message for the user to sign. This message includes the spender (the protocol contract), allowance amount, and some other fields mechanical to this pattern. This step is purely off-chain and does not submit a transaction.
+## 用户体验
+这种模式在用户端看起来是怎样的？应用前端会让钱包app显示一个消息请求用户确认签名。这个消息包含了被授权方（这个协议），授权的数量，还有其他一些此模式要求的信息项。这一步是纯粹在链下发生的，不会发起链上交易。
 
 ![metamask permit sign prompt](./metamask-permit-sign-prompt.png)
 
-After the user signs the message, the user will then be prompted to submit a transaction to call the interaction function on the protocol, also passing in the freshly signed message as an extra parameter. On-chain, the protocol redeems the signed message to grant itself an allowance, then immediately spends that allowance to move the user's tokens and perform the requested desired action.
+用户签过字之后，紧接着会跳出又一个请求让用户确认与协议的链上交互，刚刚签字确认过的消息会被作为此交互的一个参数。在链上，协议用这个参数来授权给自己相应的额度，然后马上就兑现那个额度，调取用户的相应数量代币来进行被请求的链上行为。
 
 ## How it Works
 First, for this pattern to work as described, the token must have EIP-2612 support (*but there exists [a universal workaround](#real-world-support) for legacy ERC20 tokens*).
