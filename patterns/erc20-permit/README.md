@@ -1,11 +1,11 @@
-# ERC20 Permit
+# ERC20授权许可
 
-- [📜 Example Code](./PermitSwap.sol)
-- [🐞 Tests](../../test/PermitSwap.t.sol)
+- [📜 合约](./PermitSwap.sol)
+- [🐞 测试](../../test/PermitSwap.t.sol)
 
-A widespread UX pain point when working with ERC20 tokens is requiring users to submit a separate `ERC20.approve()` transaction (which grants an address a spending allowance for a token) before a protocol can do anything with the user's tokens. This process is considered such high friction that many protocols will simply ask for an unlimited (`2**256-1`)  allowance so the user never has to set it again. However, that approach can put a user's entire balance at risk if the protocol encounters a vulnerability that allows an attacker to withdraw from its existing allowances.
+接触过ERC20代币合约的用户普遍会感受到其一大痛点就是，合约要求用户单独发起一个 `ERC20.approve()` 链上交易（此函数会授权给一个地址一定的额度令其可以直接调取你的代币）方能允许某协议调动你的代币。这一步显得额外烦冗所以很多协议就默认简单化地请求用户给授权一个理论最大值(`2**256-1`)，这是一个基本上永远也用不完的额度，则用户无需再授权第二遍。然而，这个方法会将用户的全部数量的此类资产暴露在风险之下，若是此协议有漏洞则攻击者可能会盗走已被授权的全部资产。
 
-[EIP-2612](https://eips.ethereum.org/EIPS/eip-2612) defines an extension to the ERC20 specification that allows users to sign an off-chain message that the protocol can consume on-chain to grant it an immediate allowance. This means that the only transaction that a user submits is the one that actually interacts with the protocol. Thanks to the more efficient interaction, protocols can always request the safer, exact allowance needed for the interaction without UX heartburn.
+[EIP-2612](https://eips.ethereum.org/EIPS/eip-2612)定义一种ERC20标准的拓展来允许用户对链下消息进行签名，则协议可立即使用此签名在链上获得对资产的授权使用额度。这意味着从用户那头只需要发起一个与协议交互的交易即可。得益于这种更高效的交互方式，协议可以每次都仅请求恰好所需的金额数量授权用来交互，安全上用户也会更加安心。
 
 ## User Experience
 What does this pattern look like for users? The frontend will instruct the wallet to display a prompt with a message for the user to sign. This message includes the spender (the protocol contract), allowance amount, and some other fields mechanical to this pattern. This step is purely off-chain and does not submit a transaction.
