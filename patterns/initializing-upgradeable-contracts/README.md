@@ -1,9 +1,9 @@
-# Initializing Upgradeable Contracts
+# 初始化可升级合约
 
-- [📜 Example Code](./InitializedProxyWallet.sol)
-- [🐞 Tests](../../test/InitializedProxyWallet.t.sol)
+- [📜 示例代码](./InitializedProxyWallet.sol)
+- [🐞 测试](../../test/InitializedProxyWallet.t.sol)
 
-When using the [proxy](../basic-proxies/) pattern, you usually deploy a hollow proxy contract that simply forwards *all* calls to a separate logic contract via `delegatecall()` mechanics. Because this proxy contract is ideally designed to be generic and deliberately doesn't understand the internal state used by the logic contract, it usually cannot perform any initialization of this (unknown) state on its own. Thus, developers will typically define an explicit intiializer function on the logic contract that the proxy can delegatecall into (just like every other function it defines) which performs this state setup from within the proxy's context.
+当使用[代理](../basic-proxies/)模式时，通常你要部署一个空壳代理合约，这个合约做的事情就是通过使用 `delegatecall()` 简单地将*所有*调用命令转给另一个单独的逻辑合约。因为这个代理合约在理想情况下要被设计成一个泛泛的格式所以它不会有在逻辑合约里的各状态变量的定义，所以他也就无法独立完成这些状态变量在自身环境中的初始化。因此，开发者通常要明确地在逻辑合约内定义一个用来初始化的函数，然后令代理合约传递委托调用命令到逻辑合约，随后这个初始化函数就将在代理合约的环境内来被执行，进而完成那些状态变量在代理合约里的初始化。
 
 ![proxy with initializer diagram](./initializer.png)
 
