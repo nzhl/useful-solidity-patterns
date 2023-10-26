@@ -23,8 +23,8 @@
     - 可供人理解的JSON格式的信息在链下被签名，随后可在链上执行。
 - [ERC20 的（不）兼容性](./patterns/erc20-compatibility)
     - 使用（比你想象中更加常见的）合规和不合规的 ERC20 代币。
-- [ERC20 (EIP-2612) Permit](./patterns/erc20-permit)
-    - Perform an ERC20 approve and transfer in a *single* transaction.
+- [ERC20代币的EIP2612授权许可](./patterns/erc20-permit)
+    - 先授权再转移ERC20代币仅需要*一笔*链上交易。
 - [`eth_call` 技巧](./patterns/eth_call-tricks)
     - 使用 `eth_call` 执行快速且复杂的链上数据查询以及0成本的调用模拟
 - [显式存储桶](./patterns/explicit-storage-buckets)
