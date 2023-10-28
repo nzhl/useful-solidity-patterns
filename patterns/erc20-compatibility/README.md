@@ -32,13 +32,13 @@ if (returnOrRevertData.length >= 32) {
 
 ### 库
 
-上述解决方案对于所有 ERC20 函数的变体都是一样的，而且现代 solidity 语法也足够清晰，因此自己实现 ERC20 令牌的通用处理并不难。但想要获得更加万无一失、开箱即用的解决方案，你需要导入 [OpenZeppelin 的 SafeERC20 库](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#SafeERC20)，该库将所有 ERC20 函数封装为"`safe`"变体，以便你更好的调用。
+上述解决方案对于所有 ERC20 函数的变体都是一样的，而且现代 Solidity 语法也足够清晰，因此自己实现 ERC20 代币的通用处理并不难。但想要获得更加万无一失、开箱即用的解决方案，你需要导入 [OpenZeppelin 的 SafeERC20 库](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#SafeERC20)，该库将所有 ERC20 函数封装为"`safe`"版本，以便你更好的调用。
 
 ## 不一致的审批行为
 
-在一些著名的 ERC20 中发现的另一个怪现象与设置津贴有关。在 ERC20 中，津贴是通过调用 `approve(spender, allowance)` 函数来设置的，该函数允许 `spender` 转移调用者代币的 `allowance`。通常情况下，调用 `approve()` 函数只会用新的津贴覆盖之前的值。但是，有些代币（USDT、KNC 等）只允许从 `0` 修改或者将 `allowance` 修改成 `0`。也就是说，如果你有津贴 `X`（其中 `X != 0`），要将其设置为 `Y`（其中`Y != 0`），你必须先将其设置为 `0` 😵 。这是一种预防措施，可减轻[此处](https://docs.google.com/document/d/1YLPtQxZu1UAvO9cZ1O2RPXBbT0mooh4DYKjA_jp-RLM/edit#heading=h.b32yfk54vyg9)概述的一种罕见的前置运行攻击。
+在一些著名的 ERC20 中发现的另一个怪现象与设置限额有关。在 ERC20 中，限额是通过调用 `approve(spender, allowance)` 函数来设置的，该函数允许 `spender` 转移调用者代币的 `allowance`。通常情况下，调用 `approve()` 函数只会用新的限额覆盖之前的值。但是，有些代币（USDT、KNC 等）只允许从 `0` 修改或者将 `allowance` 修改成 `0`。也就是说，如果你有 `X`（其中 `X != 0`）限额，要将其设置为 `Y`（其中`Y != 0`），你必须先将其设置为 `0` 😵 。这是一种预防措施，可减轻[此处](https://docs.google.com/document/d/1YLPtQxZu1UAvO9cZ1O2RPXBbT0mooh4DYKjA_jp-RLM/edit#heading=h.b32yfk54vyg9)概述的一种罕见的前置运行攻击。
 
-因此，为了在更新津贴时获得普遍支持，在将津贴设置为非零值之前，还应（除了处理可选的返回值外）首先清除津贴：
+因此，为了在更新限额时获得普遍支持，在将限额设置为非零值之前，还应（除了处理可选的返回值外）首先清除限额：
 
 ```solidity
 // Updating spender's allowance to newAllowance, compatible with tokens that require it
