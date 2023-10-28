@@ -6,7 +6,7 @@
 ERC721（和 ERC1155）是定义 EVM 链上最常见 NFT 合约的代币标准，从 ERC20 中汲取了大量灵感。这一点在其限额机制中显而易见。用户调用 `approve()` 或 `setApprovalForAll()`，授予另一个地址在未来的交易/调用中转移自己的 NFT 代币的能力。如果执行 NFT 转移的交互是由另一个用户（而不是所有者）发送的，这就非常合理。但如果交易实际上是由代币所有者发送的，则根本没有必要使用限额机制！
 
 ## `onERC721Received()`
-[ERC721 标准](https://eips.ethereum.org/EIPS/eip-721) 定义了一个 `onERC721Received()` 处理函数，可让接收方在调用 `safeTransferFrom()` 时控制执行。此外，一个任意的 `bytes` 数据参数也可以通过转账调用传递到处理程序中。该数据参数通常由处理程序解码，并提供有关转账目的的特定应用程序上下文。
+[ERC721 标准](https://eips.ethereum.org/EIPS/eip-721)定义了一个 `onERC721Received()` 处理函数，可让接收方在调用 `safeTransferFrom()` 时控制执行。此外，一个任意的 `bytes` 数据参数也可以通过 transfer 调用传递到处理程序中。该数据参数通常由处理程序解码，并提供有关转账目的的特定应用程序上下文。
 
 ## 案例学习：托管拍卖清单
 
@@ -26,7 +26,7 @@ ERC721（和 ERC1155）是定义 EVM 链上最常见 NFT 合约的代币标准�
     1. NFT 合约调用 `auctionHouse.onERC721Recevied(..., data)`。
         1. `auctionHouse` 解码 `data` (`listOptions = abi.decode(data, ListOptions)`) 并根据解码后的配置开始拍卖。
 
-因此，在这种情况下，使用转账钩子对用户来说少了一次交易 😎。
+因此，在这种情况下，使用 transfer 钩子对用户来说少了一次交易 😎。
 
 ## 钩子剖析
 `onERC721Received()` 被声明为：
@@ -43,7 +43,7 @@ function onERC721Received(address operator, address from, uint256 tokenId, bytes
     - 任何人都可以调用此函数，因此根据产品的期望，你可能需要强制要求 `msg.sender` 是已知的 NFT 合约。
 
 - `data` 是 `safeTransferFrom()` 调用者传入的任意数据。因此，不要指望它总是格式良好。
-- 该处理函数不是 `payable` 的，因此如果你想在同一笔交易中向用户收取 ETH（不太可能），你可能需要让用户提前设置 WETH 额度。
+- 该处理函数不是 `payable` 的，因此如果你想在同一笔交易中向用户收取 ETH（不太可能），你可能需要让用户提前设置 WETH 限额。
 - 该函数的返回值必须是 `onERC721Received.selector` (`0x150b7a02`)。
 
 ## ERC1155
