@@ -39,8 +39,8 @@
     - 证明潜在大型固定集合成员资格的高效存储方法。
 - [Multicall](./patterns/multicall)
     - Allow users to arbitrarily compose and perform multiple operations on your contract in a single transaction.
-- [NFT Receive Hooks](./patterns/nft-receive-hooks)
-    - Use ERC721/ERC1155 transfer callbacks to avoid having users set an allowance in advance.
+- [NFT 接收钩子](./patterns/nft-receive-hooks)
+    - 使用 ERC721/ERC1155 转移回调以避免用户提前设置限额。
 - [链下存储](./patterns/off-chain-storage)
     - 通过将合约状态移出链下，极大地降低 gas 成本。
 - [OnlyDelegateCall / NoDelegateCall](./patterns/only-delegatecall-no-delegatecall/)
