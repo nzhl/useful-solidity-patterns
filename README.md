@@ -45,8 +45,8 @@
     - 通过将合约状态移出链下，极大地降低 gas 成本。
 - [OnlyDelegateCall / NoDelegateCall](./patterns/only-delegatecall-no-delegatecall/)
     - Restrict functions from being called from only within in a delegatecall context or not.
-- [Packing Storage](./patterns/packing-storage)
-    - Arranging your storage variables to minimize expensive storage access.
+- [打包存储](./patterns/packing-storage)
+    - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
     - Transfer tokens securely without a direct allowance, in a way that works for all (legacy and modern) ERC20s.
 - [Read-Only Delegatecall](./patterns/readonly-delegatecall)
