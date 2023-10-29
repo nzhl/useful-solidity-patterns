@@ -7,9 +7,8 @@
 
 ![proxy with initializer diagram](./initializer.png)
 
-## Demonstration
-
-To start our code illustration of this pattern, let's define a simple, generic `Proxy` contract:
+## 示范
+我们使用一个简单且通用的 `Proxy` 合约来开始对此模式做示范：
 
 ```solidity
 contract Proxy {
@@ -20,7 +19,7 @@ contract Proxy {
     fallback(bytes calldata callData) external payable
         returns (bytes memory returnData)
     {
-        // Forward any calls to the logic contract via delegatecall.
+        // 通过委托调用将所有对proxy合约的调用转至对logic合约处执行
         returnData = _forwardCall(callData);
     }
 
