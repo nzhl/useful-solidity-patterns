@@ -12,9 +12,9 @@
 
 ```solidity
 contract Proxy {
-    Logic public immutable LOGIC;
+    address public immutable LOGIC;
 
-    constructor(Logic logic) { LOGIC = logic; }
+    constructor(address logic) { LOGIC = logic; }
 
     fallback(bytes calldata callData) external payable
         returns (bytes memory returnData)
@@ -33,83 +33,83 @@ contract Proxy {
 }
 ```
 
-Say we want to proxify a basic smart contract wallet that can receive ETH but only a designated owner can transfer it out. On the logic contract, we'll define an `initialize()` function that establishes this owner once and only once.
+假设我们想要代理一个基本的具有钱包功能的合约，这个合约能够接收ETH但是只有一个指定的钱包之主才能把钱转出来。那么在逻辑合约上，我们要定义一个 `initialize()` 函数来指定这个主人并且只能指定一次。
 
 ```solidity
 contract WalletLogic {
     bool isInitialized
     address owner;
 
-    // Set the owner once and only once.
+    // 指定主人且只能指定一次。
     function initialize(address owner_) external {
         require(!isInitialized, 'already initialized');
         isInitialized = true;
         owner = owner_;
     }
 
-    // Move ETH out of this contract.
+    // 把钱转走。
     function transferOut(address payable to, uint256 amount) external {
         require(msg.sender == owner, 'only owner');
         to.transfer(amount);
     }
 
-    // Allow this contract to receive ETH.
+    // 此合约可以接收ETH。
     receive() external payable {}
 }
 ```
 
-Now to create a new instance of the wallet we would:
-1. Deploy a new `Proxy` contract, passing in the address of the already deployed `WalletLogic` contract to the constructor.
-2. Call `initialize()` on the new proxy instance, which gets forwarded to the `WalletLogic` contract's implementation of `initialize()`.
-    1. This will set the `owner` state variable in the context of the proxy instance.
-    2. This will also set the `isInitialized` state variable to `true`, preventing further calls to `initialize()`.
+现在我们来创建这个钱包合约的实例：
+1. 部署一个新的 `Proxy` 合约，传入已经部署过的 `WalletLogic` 逻辑合约的地址给代理合约的构造函数。
+2. 对代理合约调用 `initialize()` 函数，这个调用会被转至 `WalletLogic` 逻辑合约处调用其带有执行逻辑的 `initialize()`函数。
+    1. 这样代理合约的环境中就会被指定一个 `owner` 状态变量并赋值。
+    2. 同时 `isInitialized` 状态变量也会被赋值为 `true`，以后就都不能再重复执行 `initialize()` 了。
 
-This is a pretty common way of implementing initializers for upgradeable contracts, and is the way [Openzeppelin libraries](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) are built. It works generally fine in practice but there are some pitfalls with this approach.
+这是一种常见的初始化可升级合约的方式，并且也是开源项目[Openzeppelin libraries](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) 里所采用的方式。这种方式通常在实践中没什么问题，但也会有一些小陷阱。
 
-## Deploy and Initialize at the Same Time
+## 同时部署与初始化
 
-One obvious problem is that it takes two interactions with the `Proxy` instance (a deploy then a call to `initialize()`) before the wallet is usable. If you tried to do this from an externally owned account (not a contract) it would have to occur over 2 transactions, meaning it's possible for someone else to frontrun the call to `initialize()`, establishing a different `owner`. Not good.
+一个很显然的问题就是代理合约要首先执行两个交互动作（先部署，然后调用 `initialize()`）才能让钱包开始正常工作。如果你从EOA钱包（非智能合约）处发起这两个交互，则需要两条交易，这就意味着别人有机会抢跑那条 `initialize()` 调用来设立一个别的 `owner`。这样的话就完球了！
 
-To address this, we can modify our Proxy to perform the delegatecall to `initialize()` in its constructor. But to keep it generic (the proxy shouldn't know what its logic contract is about), we'll actually pass in the *encoded call* to `initialize()`, which you can construct with your chosen web3 library's equivalent of `abi.encodeCall(WalletLogic.initialize, (owner))`. Now once the Proxy instance is deployed, it will already be initialized!
+解决这个的方法是，我们可以修改代理合约来在其构造函数中执行委托调用去 `initialize()`。但因为需要对其下达广泛形式的指令（因为你的代理合约不清楚其逻辑合约的abi是什么），所以我们实际上要传递进去直接*编码后的调令*，你可以直接使用web3库（或ethers库，等等）来构造 `abi.encodeCall(WalletLogic.initialize, (owner))` 的值。现在只要代理合约被部署则同时也会被初始化！
 
 ```solidity
 contract Proxy {
     constructor(Logic logic, bytes memory initCallData) {
         LOGIC = logic;
-        // Automatically execute `initCallData` as a delegatecall.
+        // 通过委托调用自动执行 `initCallData`.
         _forwardCall(initCallData);
     }
-    // ... rest is the same
+    // ... 其余代码同上
 }
 ```
 
-## Do We Really Need `isInitialized`? 
+## `isInitialized` 是必需的吗? 
 
-Recall that the `WalletLogic` contract uses an `isInitialized` state variable to ensure `initialize()` is only called once. This comes with its own problems as well.
+回想一下 `WalletLogic` 逻辑合约使用了一个 `isInitialized` 状态变量来确保 `initialize()` 只会被执行一次。这里也有一些问题。
 
-The first is that there is nothing preventing someone from calling `initialize()` on the `WalletLogic` contract directly (not through a `Proxy` instance) and becoming the owner of the logic contract itself. Usually this isn't a big deal, since any state changes made in the `WalletLogic` instance does not carry over to a `Proxy` instance. But if your logic contract can call `selfdestruct` or also can do its own delegatecalls, it's possible for someone to initialize it, taking ownership, then self-destruct the logic contract, which will immediately brick every `Proxy` instance that depends on it. This is exactly what happened with the [Parity Wallet hack](https://blog.openzeppelin.com/on-the-parity-wallet-multisig-hack-405a8c12e8f7/). 
+首先，此处没有什么机制来阻止其他人直接对 `WalletLogic` 逻辑合约去调用 `initialize()` （不通过 `Proxy` 代理合约），然后他成为了逻辑合约本身的拥有者。通常这个问题不大，因为这种方式给状态变量的赋值发生在逻辑合约环境内，而不会传递到代理合约处。但是，如果你的逻辑合约可以调用 `selfdestruct` 自毁或者自带其对别处的委托调用函数，那么就有可能有人来抢着初始化它，拿到所有权，然后自毁这个合约，这样也就毁了所有依赖于它的代理合约的功能。这正是之前发生过的[Parity Wallet hack](https://blog.openzeppelin.com/on-the-parity-wallet-multisig-hack-405a8c12e8f7/)。
 
-A less severe problem with this approach is the gas overhead incurred from having to write to the `isInitialized` storage slot, which is about 20k in the worst case. Our example is actually not so impacted by this because our `isInitialized` field is declared next to an `address` field that nicely [packs](../packing-storage/) together into the same slot, but the standard [OpenZeppelin implementation](https://github.com/OpenZeppelin/openzeppelin-upgrades/blob/master/packages/core/contracts/Initializable.sol#L66) most projects use adds storage padding to its contracts to prevent slot packing, so those contracts will eat the full 20k cost 🙈.
+还有另外一个不算严重的问题就是此种方法需要花费gas来给 `isInitialized` 赋值，上限为20k个单位。我们的例子中还不太被这个问题所影响，因为 `isInitialized` 是紧接着一个 `address` 被声明的，这两个变量很舒服地被[packs](../packing-storage/)打包到同一个储存槽里去了，但是大多数项目所使用的标准化的实现方式[OpenZeppelin implementation](https://github.com/OpenZeppelin/openzeppelin-upgrades/blob/master/packages/core/contracts/Initializable.sol#L66)却是使用了补零填充来防止打包进同一个储存槽，所以这些合约就会花满这个额外的20k个单位的gas 🙈。
 
-Is there a way to both get rid of the `isInitialized` state variable and protect our logic contract from being initialized directly?
+那么有没有什么办法来既去掉`isInitialized` 变量同时也保护逻辑合约不被直接初始化呢？
 
-Since we've moved the delegatecall to `initialize()` into our `Proxy` contract's constructor, if we can just ensure that the `initialize()` function could *only* be called from within the constructor, we shouldn't need to worry about it getting called again. In the EVM, the constructor's job is actually to return the bytecode that will live at the contract's address. So, while inside a constructor, your address (`address(this)`) will be the deployment address, but there will be no bytecode at that address! So if we check `address(this).code.length` before the constructor has finished, even from within a delegatecall, we will get `0`. So now let's update our `initialize()` function to only run if we are inside a constructor:
+既然我们已经将对 `initialize()` 委托调用挪进了 `Proxy` 代理合约的构造函数之内，如果我们能确保 `initialize()` 函数*只能*从构造函数之内被调用，应该就不用担心它会被重复调用了。在EVM中，构造函数会返回此合约将被部署的地址中存在的字节码。所以，在构造函数内，`address(this)`就代表了将被部署的地址，但此刻字节码还尚未存在在此地址中！所以，如果我们在构造函数未执行完毕时检查`address(this).code.length`，即便是通过一个委托调用，我们仍会得到 `0` 值。所以现在我们可以升级 `initialize()` 函数逻辑来令他仅会在构造函数的内部来执行：
 
 ```solidity
 contract WalletLogic {
     address owner;
 
-    // Set the owner. Only runs from within the context of a constructor.
+    // 指定主人. 仅会在构造函数的内部来执行。
     function initialize(address owner_) external {
         require(address(this).code.length == 0, 'not in constructor');
         owner = owner_;
     }
-    // ... rest is the same
+    // ... 其余代码同上
 }
 ```
 
-Now the `Proxy` contract's constructor can still delegatecall `initialize()`, but if anyone attempts to call it again (after deployment) through the `Proxy` instance, or tries to call it directly on the `WalletLogic` instance, it will revert because `address(this).code.length` will be nonzero. Also, because we no longer need to write to any state to track whether `initialize()` has been called, we can avoid the 20k storage gas cost. In fact, the cost for checking our own code size is only 100 gas, which means we have a 200x gas savings over the standard version. Pretty neat!
+现在 `Proxy` 代理合约的构造函数还是能委托调用 `initialize()`，但如果任何人在此代理合约部署之后还试图通过其来调用 `initialize()`，抑或是打算直接在 `WalletLogic` 合约上调用它，这个函数执行就会失败，因为 `address(this).code.length` 不为零，检查不会通过。并且，因为我们不需要使用任何状态变量来记录 `initialize()` 执行历史，那20k的gas也省了！实际上，我们所使用的这种检查只需要花100单位的gas，相对于20k的标准化部署方案省了200倍的gas。泰酷辣！
 
-## Real World Usage
-- [OpenZeppelin's upgradeable contracts](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) all use a conventional initializer pattern.
-- PartyDAO's [Party Protocol](https://github.com/PartyDAO/party-protocol) uses proxy contracts extensively to cut down instantiation costs. Their base class for logic contracts defines an [`onlyConstructor` modifier](https://github.com/PartyDAO/party-protocol/blob/main/contracts/utils/Implementation.sol#L24) that only allows for logic initialization during deployment of the proxy contract.
+## 实际中的用例
+- [OpenZeppelin's 可升级合约](https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable) 所用的都是传统的初始化模式。
+- PartyDAO's [Party Protocol](https://github.com/PartyDAO/party-protocol) 代理合约则注重节省建立合约的成本。他们的逻辑合约定义了一个 [`onlyConstructor` modifier](https://github.com/PartyDAO/party-protocol/blob/main/contracts/utils/Implementation.sol#L24) 仅允许初始化在代理合约的部署过程中被执行。
