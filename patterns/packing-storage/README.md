@@ -1,17 +1,17 @@
-# Packing Storage
+# 打包存储
 
-- [📜 Example Code](./PackedStoragePayouts.sol)
-- [🐞 Tests](../../test/PackedStoragePayouts.t.sol)
+- [📜 示例代码](./PackedStoragePayouts.sol)
+- [🐞 测试](../../test/PackedStoragePayouts.t.sol)
 
-Contract storage in the EVM is built around the concept of "slots," where each slot is 32 bytes wide and can be indexed by any 256-bit number. In the simple case, the compiler will assign storage variables to successive slots as you declare them in your contracts.
+EVM 中的合约存储是围绕"槽"的概念构建的，每个槽位宽 32 字节，可以被任何 256 位的数字索引。在简单的情况下，编译器会根据你在合约中的声明，将存储变量分配到连续的槽中。
 
 ![slot storage](./slot-storage.png)
 
-As a single operation, reading and writing to a storage slot is probably the most expensive thing your contract does regularly, with a single read costing up to 2,100 gas and single write costing up to 20,000 gas (on mainnet). Non-trivial contracts will usually need to read from and write to many storage variables in a single transaction, meaning the costs can quickly add up.
+在单次操作中，读取和写入存储空间可能是合约定期进行的最昂贵的操作，单次读取成本高达 2,100 gas，单次写入成本高达 20,000 gas（在主网上）。非大型合约通常需要在单次交易中读取和写入多个存储变量，这意味着成本会迅速增加。
 
-## Manual Slot Packing
+## 手动打包
 
-One way to reduce the impact of accessing multiple storage variables is to try to fit more than one variable into a single slot. If you have two (or more) storage variables that have a combined size of up to 32 bytes, you can store them both in a single slot using bitwise operations, potentially cutting the number of reads and writes in half (or more).
+减少访问多个存储变量带来的影响的一种方法是，尝试在一个槽中容纳多个变量。如果两个（或多个）存储变量的总大小不超过 32 字节，可以使用位操作将它们同时存储到一个槽中，这样就有可能将读写次数减少一半（或更多）。
 
 ```solidity
 // Packed slot holding a uint64 and an address.
@@ -31,30 +31,30 @@ function readPackedValues() public view
 // Similar logic for writing...
 ```
 
-But you don't need to do this!
+但你不需要这样做！
 
-## Automatic Slot Packing
-The above syntax is pretty unsightly. Fortunately the solidity compiler will do this for you, out of the box, for free!
+## 自动打包
+上述语法非常不优雅。幸运的是，Solidity 编译器会帮你完成这项工作，开箱即用。
 
-The compiler will attempt to pack any storage variables that are delcared **adjacent** to each other, so long as they can fit inside 32 bytes. If they cannot fit in the same slot, the next slot is used and packing starts anew from there. Because of this process, each storage variable innately has a "slot" (0 - 2^32-1) and byte "offset" (0-31) property associated with it. When you write solidity that accesses a storage variable, the compiler will generate code that performs the bitwise operations to isolate the variable from the slot, just like when we did it manually but without having to think about it.
+编译器会尝试打包任何**相邻**的存储变量，只要它们能容纳在 32 字节内即可。如果它们不能放在同一个槽中，就会使用下一个槽，并从那里开始新的打包。由于这个过程，每个存储变量天然具有一个与之相关的"槽"（0 - 2^32-1）和字节"位移量"（0-31）属性。当你编写访问存储变量的 Solidity 代码时，编译器会生成执行位操作的代码，将变量与槽隔离开来，就像我们手动操作一样，但无需考虑它。
 
-### What Types Pack?
+### 打包什么类型？
 
-All primitive types < 32 bytes that are declared *adjacent*, even across inherited contracts, can pack with each other, this includes:
+所有被声明为相邻且小于 32 字节的原始类型，即使是跨继承合约，也可以相互打包，包括：
 
-- Integers:
+- 整型:
     - `uint8`-`uint248`
     - `int8`-`int248`
-- Fixed-width bytes:
+- 固定宽度的字节:
   - `bytes1`-`bytes31`
-- `bool`s
-- `enum`s
+- 布尔类型 `bool`
+- 枚举类型 `enum`
 
-Delcaring any non-primitive type (structs, arrays, mappings, etc) of storage variable will interrupt the packing allocation (S) and will assign that variable to a new slot (S+1), even if the current slot is not fullly utilized. Non-primitive types cannot be packed with adjacent variables so the following variable will also start on a new slot (S+2).
+声明为任何非原始类型（structs, arrays, mappings 等）的存储变量都会中断打包分配（S），并将该变量分配到一个新槽（S+1），即使当前槽尚未被完全使用。非原始类型不能与相邻变量一起打包，因此后面的变量也将从一个新槽（S+2） 开始。
 
-Certain types will also pack fields/values *within* themselves, but not with variables delcared adjacent to them. This includes `struct`s, fixed-width arrays, and short (<32 length) `bytes`/`string`s.
+某些类型也会将字段/值打包到自身中，但不会与相邻的变量一起打包。这包括 `struct`、固定宽度数组和短（长度小于 32）的 `bytes`/`string`。
 
-Take, for example, the following contracts:
+以下面的合约为例：
 ```solidity
 contract ContractA {
     bool foo;
@@ -71,9 +71,9 @@ contract ContractB is ContractA {
 }
 ```
 
-...will result in the following storage layout:
+该合约将导致如下存储布局：
 
-| storage variable | slot | offset | length |
+| 存储变量 | 槽 | 位移 | 长度 |
 |------------------|------|--------|--------|
 | `ContractA.foo`    | 0    | 0      | 1      |
 | `ContractB.who`    | 0    | 1      | 20      |
@@ -83,9 +83,9 @@ contract ContractB is ContractA {
 | `ContractB.things[1]` | 2 | 2 | 2 |
 | `ContractB.things[2]` | 2 | 4 | 2 |
 
-### Inspecting Assigned Slots And Offsets
+### 检查分配的槽和位移量
 
-Most people won't need to, but you can uncover the slot and offset values associated with a storage variable for use in your code using assembly:
+大多数人不需要这样做，但你可以使用汇编程序找出与存储变量相关的槽和位移值，以便在代码中使用：
 ```solidity
 uint64 _u64;
 address _a160;
@@ -101,28 +101,28 @@ function getAddressSlotAndOffset() external pure
 }
 ```
 
-The solc compiler (and therefore foundry, hardhat, truffle, etc) can also [produce a storage layout map](https://docs.soliditylang.org/en/v0.8.16/using-the-compiler.html#input-description) as part of its build artifact, which will output the assigned slot, offset, and length of each storage variable declared in your contract(s). This can be extremely useful for getting your layouts right before deploying.
+solc 编译器（以及 foundry、hardhat、truffle 等编译器）还可以[生成存储布局图](https://docs.soliditylang.org/en/v0.8.16/using-the-compiler.html#input-description)作为其构建工具的一部分，该图会输出合约中声明的每个存储变量的分配槽、位移量和长度。这对于在部署前获得正确的布局非常有用。
 
-## Tips
+## 小窍门
 
-### Co-location
-A good rule-of-thumb for getting the most benefit out of storage packing is to declare variables that are frequently read or written together next to each other, so the compiler is hinted to try to fit them into the same slot.
+### 一次查询
+要想从存储打包中获得最大收益，一个好的经验法则是将经常一起读取或写入的变量紧挨着声明，这样编译器就会被提示尽量将它们放入同一个槽中。
 
-### Smaller Types
-Choose types that realistically match the range of values they will hold. For example, if you are tracking an absolute, real quantity of ETH, USDC, etc, the `uint256` type is probably wasting bits you will never need and you could probably get away with a `uint128` or even `uint96`. For timestamps, a `uint40` can represent 34,000+ years in seconds, which is probably more than enough for your protocol 😉. But, in all cases, be wary of overflows when downcasting.
+### 使用较小的类型
+选择的类型要与它们将持有的数值范围要能实际匹配。例如，如果你要跟踪的是 ETH、USDC 等的绝对真实数量，那么 `uint256` 类型可能会浪费你的比特，你可以使用 `uint128` 甚至 `uint96` 类型。对于时间戳，`uint40` 可以表示 34,000 多年（以秒为单位），这对于你的协议来说可能绰绰有余😉。但是，在这些情况下，向下类型转换时都要小心溢出。
 
 ### EIP-2929
-[EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) introduced a concept of "warm" and "cold" storage access. In an oversimplified nutshell, the first time a storage slot is accessed, a 2,100 (at least) gas fee is incurred, but each read thereafter only costs 100. This reduces the impact of repeated access to a storage slot. So even if you do not necessarily read two variables at the same place in your code, so long as they're each read in the same transaction, it may be worth it to pack them together because reading one will discount the read on the other. Note that this behavior only applies to chains that have implemented EIP-2929.
+[EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) 引入了"冷"、"热"存储访问的概念。简而言之，首次访问存储槽会产生（至少） 2100 gas 的费用，但此后每次读取只需 100 gas。这就减少了重复访问存储空间的影响。因此，即使你不一定要在代码中的同一位置读取两个变量，只要它们是在同一事务中读取的，将它们打包在一起也是值得的，因为读取其中一个变量会减少对另一个变量的读取。请注意，这种行为只适用于那些已经实现 EIP-2929 的链。
 
-## Working Example
+## 工作示例
 
-The [provided example](./PackedStoragePayouts.sol) demonstrates two implementations (to illustrate gas difference) of a contract that distributes ETH on a vesting schedule. Both track 4 integer storage variables per payout created through `vest()`:
+[提供的示例](./PackedStoragePayouts.sol)演示了按归属计划分配 ETH 的合约的两种实现（以说明 gas 差异）。这两种实现都跟踪通过 `vest()` 创建的每次派发的 4 个整数存储变量：
 
-- `cliff`: When payouts begin.
-- `period`: How long the payouts will be made for.
-- `totalAmount`:  The total amount of ETH that will be paid out.
-- `vestedAmount`: How much ETH has been claimed.
+- `cliff`: 何时开始付款。
+- `period`: 支付时间。
+- `totalAmount`: 支付的 ETH 总额。
+- `vestedAmount`: 已申领的 ETH 数量。
 
-The naive implementation (`NaivePayouts`) declares these variables all as `uint256`s, which is a typical approach new developers take. This means each call to `claim()` reads from 4 slots. But the packed version (`PackedPayouts`) carefully chooses the types and semantics of each variable to make sure they all sum up to exactly 32 bytes. This allows `claim()` to do the same thing with only a single slot read.
+一个不成熟的实现（`NaivePayouts`）将这些变量都声明为 `uint256` 类型，这是新人开发者采用的典型方法。这意味着每次调用 `claim()` 都要读取 4 个存储槽。但是打包版本 (`PackedPayouts`) 会仔细选择每个变量的类型和语义，以确保它们的总和正好是 32 字节。这样，`claim()` 只需读取一个存储槽就能完成同样的工作。
 
-You can run the tests with `forge test --gas-report` to get an idea of the gas used by each implementation. The packed solution is 38% cheaper (21646 vs 33232) on `claim()` and 48% cheaper 😳 (47992 vs 93108) on `vest()`. Not bad!
+你可以使用 `forge test --gas-report` 运行测试，以了解每种实现所使用的 gas。打包后的解决方案在 `claim()` 上gas 节约了 38% (21646 vs 33232)，在 `vest()` 上 gas 节约了 48% 😳 (47992 vs 93108)。还不错！

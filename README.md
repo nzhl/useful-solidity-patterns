@@ -22,7 +22,7 @@
 - [EIP712链下消息签名](./patterns/eip712-signed-messages)
     - 可供人理解的JSON格式的信息在链下被签名，随后可在链上执行。
 - [ERC20 的（不）兼容性](./patterns/erc20-compatibility)
-    - 使用（比你想象中更加常见的）合规和不合规的 ERC20 代币。
+    - 正确地兼容符合标准规范和不符合标准规范（比你想象中更加常见的）的 ERC20 代币实现。
 - [ERC20代币的EIP2612授权许可](./patterns/erc20-permit)
     - 先授权再转移ERC20代币仅需要*一笔*链上交易。
 - [`eth_call` 技巧](./patterns/eth_call-tricks)
@@ -45,14 +45,14 @@
     - 通过将合约状态移出链下，极大地降低 gas 成本。
 - [OnlyDelegateCall / NoDelegateCall](./patterns/only-delegatecall-no-delegatecall/)
     - Restrict functions from being called from only within in a delegatecall context or not.
-- [Packing Storage](./patterns/packing-storage)
-    - Arranging your storage variables to minimize expensive storage access.
+- [打包存储](./patterns/packing-storage)
+    - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
     - Transfer tokens securely without a direct allowance, in a way that works for all (legacy and modern) ERC20s.
 - [Read-Only Delegatecall](./patterns/readonly-delegatecall)
     - Execute arbitrary delegatecalls in your contract in a read-only manner, without side-effects.
-- [Separate Allowance Targets](./patterns/separate-allowance-targets/)
-    - Avoid having to migrate user allowances between upgrades with a dedicated approval contract.
+- [将授权转账权限的合约单独抽象出来](./patterns/separate-allowance-targets/)
+    - 避免在某个被授权了转账权限的合约升级时不得不迁移过去进行的授权
 - [Stack-Too-Deep Workarounds](./patterns/stack-too-deep/)
     - Clean solutions for getting around and avoiding stack-too-deep errors. So clean that you should do them regardless!
 - 持续关注, 会有更多设计模式更新进来 😉
