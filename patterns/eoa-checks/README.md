@@ -1,22 +1,22 @@
-# EOA (Externally Owned Account) Checks
-- [📜 Example Code](./KingOfTheHill.sol)
-- [🐞 Tests](../../test/KingOfTheHill.t.sol)
+# 个人钱包地址（非合约地址）检查
+- [📜 示例代码](./KingOfTheHill.sol)
+- [🐞 测试](../../test/KingOfTheHill.t.sol)
 
-Externally Owned Accounts (EOAs) describe network addresses whose address is derived from a private key. They are not contracts and can never become a contract. In layman's terms, these are regular (non-smart) wallets, such as Metamask accounts, hardware wallets, and paper wallets. In contrast, wallets like Argent and Gnosis Safe are "smart" wallets, where the account addresses actually hold code.
+个人钱包地址指的是那些从某私钥经过加密算法产生而来的地址。这些地址不是智能合约，也永远不会成为智能合约地址。说简单点，这些就是最普遍意义上的钱包地址，比如小狐狸钱包地址，冷钱包地址，还有纸钱包地址等等。另一种不同概念的钱包比如Argent和Gnosis Safe是“智能”钱包，他们实际上是定义了像钱包一样的功能的智能合约代码。
 
-Developers often need to consider whether the addresses they interact with are EOAs or could potentially be smart contracts. Understanding the different quirks and consequences between each is essential to writing a robust and defensive protocol. Let's quickly go over the more consequential differences and explore how they can impact your contract.
+开发人员经常需要考虑到正在与之交互的地址是个人地址还是合约地址。了解它们之间的区别与后果是很重要的，尤其是你想要写一个比较完善的对恶意行为有防御性的合约。让我们来快速过一遍这些区别和它们会对你的合约产生什么样的影响。
 
-### Calls To
-Any function call to an address without code at it will always succeed, but no code will be executed and no data will be returned. For functions that have no return value, this behavior can be indistinguishable from a call to a contract that actually implements the function, because no return data is expected anyway. So knowing whether an address being called is or is not a contract can be critical in those scenarios.
+### 向XXX发起调用
+任何试图对一个个人地址发起的函数调用都会成功，但是没有代码会被执行也没有数据被返回。如果这个尝试的函数逻辑本身就不带返回值，那么这种情况就容易跟“试图对真的合约进行函数调用并且真的执行了”有所混淆，因为两种行为都不带返回值。所以要明确被发去调用的地址到底是不是一个智能合约，这是很重要的。
 
-### Calls From
-True EOAs (backed by a private key) can [currently](https://eips.ethereum.org/EIPS/eip-3074) only make a single direct function call *per transaction*, whereas contract callers do not have this limitation. Reentrancy attacks, arbitrage, oracle manipulations, flash loan attacks, etc, are much easier and more profitable to perform from inside a smart contract within a single transaction than over multiple transactions directly from an EOA. This is why most major exploits will first deploy an exploit contract to perform all the logic in one go.
+### 被来自于XXX调用
+真正的个人地址（由私钥衍生而来的）[目前](https://eips.ethereum.org/EIPS/eip-3074)只能在*每项交易*里发起一条直接的函数调用，然而智能合约发起函数调用时却不受此限。重入攻击，套利交易，预言机操纵，闪电贷攻击等等这些行为若是从一个智能合约的一项交易中发起，就比从个人地址而来的若干项组合交易的完成方式要更加简单可行有利可图。这也是为何那些发生过的重大攻击事件都是先行部署一个用来攻击的智能合约，然后这些攻击行为都在同一条交易中一次性发起。
 
-### ETH transfers
-At the EVM level, plain ETH transfers (e.g., `address(receiver).transfer(1 ether)`, `address(receiver).send(1 ether)`, or `address(receiver).call{value: 1 ether}("")`) boil down to an empty function call (i.e., with no call data). As described previously, calls to EOAs will always succeed here and do nothing. But if the target is actually a contract, it will run the contract's bytecode, which allows them to gain execution control and perform whatever actions they wish, assuming they have enough gas to do so. Aside from using this opportunity to perform a reentrancy exploit, the contract could also simply revert, which might cause your contract to become deadlocked.
+### ETH转账
+在EVM层面，纯粹的ETH转账（例如  `address(receiver).transfer(1 ether)`, `address(receiver).send(1 ether)`, or `address(receiver).call{value: 1 ether}("")`）都会认做一个不含有calldata的空函数调用。正如前面提到过的，任何向EOA发起的调用都会成功并且不执行什么代码。但是如果转账目标实际是一个智能合约，它就会去运行这个合约的字节码，合约方获得了执行代码的权利来做它们设计好要做的事情（在gas够用的前提下）。除了广为人知的用这个机会来做重入攻击，恶意的合约还可以单纯地让交易逆转，这样你的合约的这个函数执行就永远不会成功。
 
-### Token Transfers
-Some token standards allow for transfer handlers, where they will call a standard function (e.g., `onERC721Received()`) on the recipient in order to react to a token transfer (similar to how ETH transfers can trigger code execution). So some token transfers to contracts will also suffer from the same risks as ETH transfers.
+### 代币转账
+有的代币标准允许一种转账处理程序，会以接收方名义来发起一个标准的函数调用（例如 `onERC721Received()`）来作为对接收到代币转账的反应（类似于ETH转账可以触发某些代码执行）。所以某些代币转账给智能合约也会具有像ETH转账那样的风险。
 
 ### Stuck Assets
 Assets (ETH, ERC20s, ERC721s, etc.) held by an EOA are almost always accessible and transferrable by whomever knows the private key. On the other hand, smart contracts are not controlled by a private key. If a contract does not expose functions to directly interact with an asset it holds, they may become permanently stuck in that contract. This is one of the motivations for token standards like `ERC721` and `ERC1155` having "safe" transfer functions that require a contract recipient to respond to an on-transfer hook to signal deliberate support for receiving tokens.
