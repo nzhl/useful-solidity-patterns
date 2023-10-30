@@ -33,8 +33,8 @@
     - The consequences of interacting with contracts vs regular wallets, and how to identify them.
 - [工厂证明](./patterns/factory-proofs)
     - 在链上证明合约是由可信任的部署人部署的。
-- [Initializing Upgradeable Contracts](./patterns/initializing-upgradeable-contracts)
-    - Methods to safely and efficiently initialize state for proxy contracts.
+- [初始化可升级合约](./patterns/initializing-upgradeable-contracts)
+    - 安全且高效地为代理合约初始化变量的方法。
 - [默克尔证明](./patterns/merkle-proofs)
     - 证明潜在大型固定集合成员资格的高效存储方法。
 - [Multicall](./patterns/multicall)
