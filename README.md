@@ -29,7 +29,7 @@
     - 使用 `eth_call` 执行快速且复杂的链上数据查询以及0成本的调用模拟
 - [显式存储桶](./patterns/explicit-storage-buckets)
     - 为可升级合约提供更安全、有保证的非重叠存储。
-- [个人钱包地址（非合约地址）检查](./patterns/eoa-checks)
+- [个人钱包地址（非合约地址）类型检查](./patterns/eoa-checks)
     - 介绍与个人地址和合约地址交互会产生的不同后果，和如何甄别这两种地址。
 - [工厂证明](./patterns/factory-proofs)
     - 在链上证明合约是由可信任的部署人部署的。
