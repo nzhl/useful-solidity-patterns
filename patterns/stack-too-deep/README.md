@@ -1,8 +1,8 @@
-# Stack Too Deep Workarounds
-- [📜 Example Code](./StackTooDeep.sol)
-- [🐞 Tests](../../test/StackTooDeep.t.sol)
+# 堆栈过深的解决方案
+- [📜 示例代码](./StackTooDeep.sol)
+- [🐞 测试](../../test/StackTooDeep.t.sol)
 
-The EVM is stack-based, which means most EVM instructions will consume their arguments from the top of the stack, which is a small, distinct kind of memory for working data (usually local variables).
+EVM 是基于栈的，这意味着大多数 EVM 指令将从栈顶取出参数，而栈是一种小型的、独特内存，用于存储工作数据（通常是局部变量）。
 
 ```
     ┌───────────────────┐
@@ -15,23 +15,23 @@ n+1 │        a          ├─────────┘                    �
            le stack
 ```
 
-In solidity, by default, most function arguments and variables will also live on the stack, getting shuffled around as needed during execution. In total, the stack can hold 1024 32-byte values but only the top 32 slots are directly accessible at any time. So, in complex functions, you can easily run into situations where compilation will fail because the compiler encounters a variable that falls outside of this accessible region of the stack.
+在 Solidity 中，默认情况下，大多数函数参数和变量也会存放在栈中，并在执行过程中根据需要进行洗牌。栈总共可容纳 1024 个 32 字节的值，但在任何时候都只能直接访问顶部的 32 个槽位对应的值。因此，在复杂的函数中，很容易出现编译失败的情况，因为编译器会遇到栈不可访问的变量。
 
 ![compiler error](./error.png)
 
-Let's go over the common solutions to this predicament.
+让我们来看看解决这一问题的常见方法。
 
-## Compile With IR Codegen
+## 使用 IR 代码生成器进行编译
 
-Newer versions of `solc` (the solidity compiler) will suggest using the `--via-ir` flag to first compile solidity into [yul](https://docs.soliditylang.org/en/v0.8.17/yul.html) before optimizaion. The IR codegen path is capable of autonomously moving stack variables into `memory` (which is large and freely addressable) to get around stack size limits. Both [Foundry](https://book.getfoundry.sh/config/) and [Hardhat](https://hardhat.org/hardhat-runner/docs/guides/compile-contracts) are able to pass in this flag.
+新版本的 `solc`（Solidity 编译器）建议使用 `--via-ir` 参数，在优化之前先将 Solidity 代码编译成 [yul](https://docs.soliditylang.org/en/v0.8.17/yul.html)。IR 代码生成路径能够自主地将栈变量移入"内存"（内存容量大且可自由寻址），以绕过栈大小限制。[Foundry](https://book.getfoundry.sh/config/) 和 [Hardhat](https://hardhat.org/hardhat-runner/docs/guides/compile-contracts) 都能传递此参数。
 
-This solution requires very little effort on your end but may not be able to address every situation and can come at the expense of increased compilation times and any risks associated with a less mature codgen pipeline. Taking one of the upcoming approaches might also result in clearer, more human verifiable code anyway, *so don't stop here*!
+这种解决方案只需你做很少的一部分工作，但可能无法解决所有情况，而且可能会增加编译时间，并带来与不太成熟的代码生成流水线相关的风险。无论如何，采用上述方法中的一种也可能会产生更清晰、更易于人工验证的代码，所以不要止步于此！
 
-## Block Scoping
+## 块作用域
 
-In complex functions, chances are that not every declared variable is actually needed throughout the entirety of the function body. By practicing the good code hygiene of keeping variable declarations close to the code that actually uses them, you can often identify variables that have a limited lifespan within a function. You can then enclose those delcarations and operations inside scoping blocks (`{ ... }`) so the compiler can discard those variables earlier. Any variables that need to persist outside that logic should be declared outside the scoping blocks.
+在复杂的函数中，并不是每个声明的变量在整个函数体中都是被需要的。通过保持变量声明与实际使用它们的代码之间的距离这一良好的编码习惯，通常可以识别出在函数中生命周期有限的变量。然后，你可以使用花括号将这些声明和操作包裹起来（`{ ... }`），这样编译器就可以提前丢弃这些变量。任何需要在逻辑之外持久存在的变量都应在块作用域之外声明。
 
-Consider the example:
+请看下面的例子：
 
 ```solidity
 uint16 feeRateBps = manager.getFeeRate();
@@ -49,7 +49,7 @@ balances[toToken][user] += toAmount;
 return toAmount;
 ```
 
-4 local variables are pushed onto the stack by the end of this code block. But with some slight rearranging and block scoping, we can wind up with just 1 (`toAmount`):
+在代码块结束时，有 4 个局部变量被推入栈中。但是，只要稍加重新排列和使用块作用域，我们就可以只推入 1 个变量（`toAmount`）：
 
 ```solidity
 uint256 toAmount;
@@ -71,11 +71,11 @@ balances[toToken][user] += toAmount;
 return toAmount;
 ```
 
-This new version is also easier to verify because you know exactly for which operations a local variable is used and when you can safely forget about it. For this reason alone, block scoping should be used more often, even if you aren't running into stack issues!
+该版本的代码也很容易验证，因为你确切地知道局部变量用于哪些操作，以及何时可以安全地释放它。仅出于这个原因，即使没有遇到堆栈问题，也应该更多地使用块作用域！
 
-## Using Memory Structs
+## 使用内存结构体
 
-You can manually declare variables that live in `memory` instead of the stack by defining them in a `struct` type. When used this way, the only value that needs to be stored on the stack is a pointer to the `memory` offset of the struct, so several variables could effectively be collapsed into a single stack entry.
+你可以手动声明存放在 `memory` 中的变量，而不是通过定义 `struct` 将变量存储到堆栈中。使用这种方式时，堆栈中唯一需要存储的便是指向结构体的 `memory` 偏移量的指针，因此多个变量可以有效地合并为一个堆栈项。
 
 ```solidity
 struct ExchangeVars {
@@ -93,9 +93,9 @@ vars.exchangeRate = getExchangeRate(fromToken, toToken);
 ... // etc
 ```
 
-But where this approach really makes the most sense, because it provides instant readability and maintainability wins, is in the case of functions that accept or return many arguments. Functions that accept or return many arguments are, coincidentally, a common place to run into stack-too-deep issues because each argument occupies a stack space.
+但这种方法真正最有意义的地方，是在接收或返回多个参数的函数中，因为它提供了即时的可读性和可维护性。巧合的是，接收或返回多个参数的函数经常会遇到堆栈过深的问题，因为每个参数都会占用一个堆栈空间。
 
-To illustrate, let's transform the following function:
+为了说明这一点，让我们调整下面的函数：
 
 ```solidity
 function _computeExchangeAmounts(
@@ -113,7 +113,7 @@ function _computeExchangeAmounts(
 }
 ```
 
-Into a version that uses less stack space by passing arguments in via struct:
+改为通过 struct 传递参数，从而减少堆栈空间的使用：
 
 ```solidity
 struct ComputeExchangeAmountsArgs {
@@ -133,7 +133,7 @@ function _computeExchangeAmounts(ComputeExchangeAmountsArgs memory args)
 }
 ```
 
-Functions that take lots of arguments can be error-prone to call, especially if multiple arguments have compatible types. Think of what could happen if argument order were swapped during a refactor without considering all the places it's called 😱! With struct arguments, you can take advantage of named field initializers to avoid relying on argument ordering at all, and it's also clearer what each argument means. So, again, this is another pattern worth employing even in the absence of stack issues.
+调用包含大量参数的函数时容易出错，尤其是在多个参数类型兼容的情况下。想想看，如果在重构过程中调换了参数顺序，而没有考虑到所有调用的地方，会发生什么情况😱！有了结构体参数，你就可以利用有名字段来避免依赖参数的顺序，而且每个参数的含义也会更加清晰。因此，即使没有堆栈问题，这也是一种值得采用的模式。
 
 ```solidity
 // Original function call. Argument order matters 🤔:
@@ -147,18 +147,19 @@ Functions that take lots of arguments can be error-prone to call, especially if 
 }));
 ```
 
-## More Exotic Solutions
+## 更多奇技淫巧
 
-In extreme cases you may need to resort to a more exotic solution. It's unlikely you'll find yourself in these scenarios so I'll only briefly touch on them.
+在极端情况下，你可能需要采用一些奇技淫巧。你大概不会遇到这些情况，所以我只简单介绍一下。
 
-### Entering a New Execution Context
-Any time you make an external function call (calling another contract or using `this.fn()` syntax), you enter a new execution context, which comes with a brand new (virtually empty) stack. Naturally, there's some overhead associated with making an external call but it's been made significantly cheaper with the inclusion of [EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) (e.g., if you're calling yourself). Ugly, but occasionally viable.
+### 进入新的执行上下文
 
-### Using `storage` (Temporarily)
-`storage` reads and writes are notoriously expensive, so this is unlikely to be the answer. BUT `storage` does not suffer from the [quadratic gas cost](https://github.com/wolflo/evm-opcodes/blob/main/gas.md#a0-1-memory-expansion) of `memory` expansion, so, when used in conjunction with [EIP-2200](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2200.md) refunds, *maybe* there's a situation where this could work 🙃. 
+任何时候进行外部函数调用（调用另一个合约或使用 `this.fn()` 语法），都会进入一个新的执行上下文，它带有一个全新的（几乎为空）堆栈。当然，外部调用会产生一些开销，但加入 [EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) 后，开销大大降低了（例如，如果你调用自身）。虽不雅观，但偶尔也可行。
 
-### Off-chain Computation
-Sometimes a good chunk of the computation your contract does can be performed off-chain, with the result simply passed in with the top-level call, leaving your contract to do a much simpler verification step instead. For example, instead of performing a binary search through sorted data on-chain, you could do the search off-chain, pass in the index, and the contract could just verify its validity respective to its neighbors.
+### （临时）使用 `storage`
+`storage` 的读取和写入是出了名的开销大，所以这不是一个好的答案。但是，`storage` 不会受到 `memory` 扩展的[二次 gas 成本](https://github.com/wolflo/evm-opcodes/blob/main/gas.md#a0-1-memory-expansion)的影响。因此，当与 [EIP-2200](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2200.md) 退款结合使用时，该情况也许会适用🙃。
 
-### Bit-packing
-Each stack value, regardless of the actual variable type it's declared as, will always take up a full 32-byte slot. So if you actually don't need a full word of precision (e.g., `uint128` vs `uint256`), you could (un)pack multiple values into a single `uint256` or `bytes32` with some bitwise arithmetic. Of course this suffers from vastly reduced readability and can be exteremely error prone to interact with, so take caution with this approach.
+### 链下计算
+有时，合约的大部分计算都可以在链下进行，计算结果只需通过顶层调用传入即可，合约只需执行更简单的验证步骤即可。例如，与其在链上对排序数据进行二分搜索，不如在链下进行搜索，然后将索引传入，合约只需验证其与相邻数据的有效性即可。
+
+### 通过位运算打包
+每个堆栈值，无论它实际声明为哪种变量类型，最终都将占用一个完整的 32 字节槽。因此，如果你不关心精度（例如，`uint128` 与 `uint256`），你可以通过一些位运算将多个值打包到一个 `uint256` 或 `bytes32` 中。当然，这样做会大大降低可读性，而且在交互过程中极易出错，因此请谨慎使用这种方法。

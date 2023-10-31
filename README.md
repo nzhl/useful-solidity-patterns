@@ -53,8 +53,8 @@
     - Execute arbitrary delegatecalls in your contract in a read-only manner, without side-effects.
 - [将授权转账权限的合约单独抽象出来](./patterns/separate-allowance-targets/)
     - 避免在某个被授权了转账权限的合约升级时不得不迁移过去进行的授权
-- [Stack-Too-Deep Workarounds](./patterns/stack-too-deep/)
-    - Clean solutions for getting around and avoiding stack-too-deep errors. So clean that you should do them regardless!
+- [堆栈过深的解决方案](./patterns/stack-too-deep/)
+    - 避免堆栈过深错误的简洁解决方案。简洁到你无论如何都应该这么做！
 - 持续关注, 会有更多设计模式更新进来 😉
 
 ## Installing, Building, Testing
