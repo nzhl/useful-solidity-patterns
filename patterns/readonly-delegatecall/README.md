@@ -1,38 +1,38 @@
-# Read-Only Delegatecall
+# 只读委托调用
 
-- [📜 Example Code](./ReadOnlyDelegatecall.sol)
-- [🐞 Tests](../../test/ReadOnlyDelegatecall.t.sol)
+- [📜 示例代码](./ReadOnlyDelegatecall.sol)
+- [🐞 测试](../../test/ReadOnlyDelegatecall.t.sol)
 
-Delegatecalls can be used to extend the functionality of your contract by executing different bytecode/logic inside its state context. It's also an efficient way to get around code size limits. Unfortunately, `delegatecall()` has no "static" (read-only) version that reverts on state changes like `staticcall()` is to `call()`. So, by nature, delegatecalls are free to modify your contract's state or perform state-altering operations elsewhere while impersonating your contract 😱! For this reason, you definitely would *never* perform a `delegatecall()` into arbitrary bytecode... right?
+委托调用可用于通过在状态上下文中执行不同的字节码/逻辑来扩展合约的功能。这也是绕过代码大小限制的有效方法。遗憾的是，`delegatecall()` 并没有像 `staticcall()` 和 `call()` 那样的"静态"（只读）版本，可以在状态发生变更时进行还原。因此，从本质上讲，委托调用可以自由地修改你的合约状态，或在其他地方执行变更状态的操作，同时冒充你的合约😱！因此，你绝对不会想在任意字节码中执行 `delegatecall()`，不是吗？
 
-Well, what if you could guarantee that the code being executed results in no state changes? In that case, your contract could happily `delegatecall()` into arbitrary bytecode with no consequences to itself. This could unlock new, read-only functionaility that make on-chain and off-chain integrations easier or more efficient.
+那么，如果你能保证执行的代码不会导致状态变更呢？在这种情况下，你的合约就可以愉快地在任意字节码中执行 `delegatecall()`，而不会对自身造成任何影响。这可能会解锁新的只读功能，使链上和链下集成变得更容易或更高效。
 
-All we have to do is figure how to emulate a "static" `delegatecall()`, or two 🤗.
+我们所要做的，就是想办法模拟一个或多个"静态" `delegatecall()` 🤗。
 
-## Case Study: Permisionless, Arbitrary, Read-Only Delegatecalls
+## 案例学习：无权限、任意、只读委托调用
 
-Our end goal will be to create a public function on our contract that lets *anyone* pass in the address of a logic contract and call data to `delegatecall()` into. This could be used to "fill in" missing or unexpected `view` functions on a contract after deployment. It'll look something like:
+我们的最终目标是在我们的合约上创建一个公共函数，让任何人都能传递合约的地址，并调用数据到 `delegatecall()` 中。这可用于在部署后"填补"合约上缺失或意外的 `view` 函数。它看起来类似于这样：
 
 ```solidity
 function exec(address logic, bytes memory callData) external view;
 ```
 
-It should also return *exactly* whatever the `delegatecall()` returns. But we won't declare that in our hypothetical function because we can't actually know ahead of time what the return data for an arbitrary call looks like. But even without declaring it, we can (and will) use some low level assembly tricks to simply bubble up the return data without having to understand its structure. So this is fine.
+它的返回值也应该与 `delegatecall()` 的返回值一模一样。但我们不会在假想的函数中声明这一点，因为我们实际上无法提前知道任意调用的返回数据是什么样的。但即使不声明它，我们也可以（并将会）使用一些底层汇编技巧来拿到返回数据，而不必了解其结构。因此，这样做是没有问题的。
 
-## Method 1: Wrapping it in a `staticcall()`
+## 方法 1：将 `delegatecall()` 封装到 `staticcall()` 中
 
-`staticcall()` reverts if *anything* that occurs inside of it attempts to alter state. This protection also extends to nested `call()`s and even `delegatecall()`s at any depth! So if we make an external `staticcall()` to the function that actually perofrms the `delegatecall()` we can force the `delegatecall()` to also revert if any code it executes attempts to alter state.
+如果在 `staticcall()` 内部发生的任何操作试图变更状态，`staticcall()` 都会还原。这种保护机制还延伸到了嵌套的 `call()` 中，甚至任何层级嵌套的 `delegatecall()` 中！因此，如果我们向实际执行 `delegatecall()` 的函数调用外部 `staticcall()`，我们就可以强制 `delegatecall()` 在其执行的任何代码试图变更状态时进行还原。
 
-So we'll need to define 2 `external` functions, `staticExec()` (permissionless) and `doDelegateCall()` (restricted), which work together like this:
+因此，我们需要定义 2 个 `external` 函数：`staticExec()`（无权限）和 `doDelegateCall()`（受限），这两个函数是这样工作的：
 
-1. User calls `staticExec(logic, callData)` on our contract.
-2. `staticExec()` performs a `staticcall()` to `this.doDelegateCall(logic, callData)` (on our own contract).
-3. `doDelegateCall()` delegatecalls into `logic`, calling a function with `callData`.
-4. We bubble up the result/revert back to the user.
+1. 用户在我们的合约上调用 `staticExec(logic,callData)`。
+2. `staticExec() ` 执行 `staticcall()` 到 `this.doDelegateCall(logic, callData)`（在我们自己的合约上）。
+3. `doDelegateCall()` 委托调用到 `logic` 中，调用带有 `callData` 的函数。
+4. 我们将结果或者还原后的结果返回给用户。
 
-Let's work our way up by writing the function that actually performs the delegatecall, `doDelegateCall()`. If it reverts, we'll just bubble up (re-throw) the revert, but if it succeeds, we'll return the result as `bytes`.
+让我们逐步编写实际执行委托调用的函数 `doDelegateCall()`。如果该函数还原了，我们就会向上传递（重新抛出）还原动作，但如果执行成功了，我们就会以 `bytes` 的形式返回结果。
 
-Note that even though the function is *not intended to be called by the user*, it still needs to be declared `external` so `staticExec()` can actually call it through `this` semantics. Also, this function doesn't inherently have any `staticcall()` protection on it (that comes next) so it's **super important** that this function is not callable from outside the contract by anyone but the contract itself!
+请注意，尽管用户并不打算调用该函数，但它仍需声明为 `external`，以便 `staticExec()` 可以通过 `this` 语法实际调用它。此外，这个函数本身并没有任何 `staticcall()` 保护（这是下一步的内容），所以**重要的**是，除了合约本身，任何人都不能从合约外部调用这个函数！
 
 ```solidity
 function doDelegateCall(address logic, bytes memory callData)
@@ -50,7 +50,7 @@ function doDelegateCall(address logic, bytes memory callData)
 }
 ```
 
-Next we define the function users will actually interact with, `staticExec()`. It calls the `doDelegateCall()` function we just defined but through a `staticcall` context, then bubbles up the raw return `bytes` as if it returned it itself. Recognize that simply doing `this.doDelegateCall()` will perform a `call()` instead of a `staticcall()` because `doDelegateCall()` is not declared as `view` or `pure`, which is not what we want. However, if we re-cast `this` into an interface that *does* declare `doDelegateCall()` as `view` then it will be called via `staticcall()` 🧙!
+接下来，我们定义用户将实际与之交互的函数 `staticExec()`。它会调用我们刚刚定义的 `doDelegateCall()` 函数，但使用的是 `staticcall` 上下文，然后返回原始的返回值 `bytes`，就像它自己返回的一样。我们会发现，仅调用 `this.doDelegateCall()` 将执行 `call()` 而不是 `staticcall()`，因为 `doDelegateCall()` 并未声明为 `view` 或 `pure`，而这并不是我们想要的。但是，如果我们将 `this` 传递给一个声明为 `view` 的 `doDelegateCall()` 的接口上（即 IReadOnlyDelegateCall），那么它将被 `staticcall()` 调用 🧙！
 
 ```solidity
 interface IReadOnlyDelegateCall {
@@ -75,15 +75,15 @@ function staticExec(address logic, bytes calldata callData)
 }
 ```
 
-And that's it! This approach is elegant because it just relies on a standard, familiar EVM construct (`staticcall`) to enforce immutability.
+就是这样！这种方法非常优雅，因为它只依赖一个标准的、熟悉的 EVM 结构（`staticcall`）来执行不变性。
 
-But for some contracts the mere existence of the `doDelegateCall()` function is too risky even though it's shielded by a `msg.sender == this` check. If your contract can make arbitrary external calls passed in by users, or if it performs delegatecalls elsewhere, it may be possible to trick the contract into calling `doDelegateCall()` outside of the safety of `staticExec()`. Because `doDelegateCall()` itself doesn't enforce a `staticcall()` context, any unauthorized calls to it can make actual, lasting state changes. For these situations, the next approach offers more robust protection.
+但对于某些合约来说，仅存在 `doDelegateCall()` 函数就很危险了，即使有 `msg.sender == this` 校验护航。如果你的合约可以任意调用用户传入的外部调用，或在其他地方执行委托调用，那么就有可能诱使合约在 `staticExec()` 的安全范围之外调用 `doDelegateCall()`。由于 `doDelegateCall()` 本身并不强制执行 `staticcall()` 上下文，因此任何未经授权的调用都可能导致实际的、持久的状态变更。对于这些情况，下一种方法提供了更加强有力的保障。
 
-## Method 2: Delegatecall and Revert
+## 方法 2：委托调用后并还原
 
-Instead of assuming that our delegatecall function will always be called inside of a `staticcall` context, we can enforce that no state changes inside of it persist even without a `staticcall()`. We do this by simply reverting after the `delegatecall()`, which undoes everything that happened inside the current execution context. We transmit information, i.e., the `delegatecall()`'s revert message or return data, inside the payload of our revert. This means the function will *always* revert, undoing any state changes that occurred during execution, and the contents of the revert will reveal the result of that execution. 
+与其假设我们的 delegatecall 函数总是在 `staticcall` 上下文中被调用，我们可以强制执行，即使没有 `staticcall()`，其中的状态变更也不会持续。为此，我们只需在调用 `delegatecall()` 之后进行还原，这样就可以撤销当前执行上下文中发生的一切。我们在还原的数据中传输诸如 `delegatecall()` 的还原信息或者返回数据。这意味着函数将始终保持原样，撤销执行过程中发生的任何状态变更，而还原的内容则表征执行的结果。
 
-And because this function cannot possibly alter state, we no longer have to worry about guarding against who can call it. So here's our new, always-reverting `delegatecall` function, `doDelegateCallAndRevert()`:
+因为这个函数不可能变更状态，所以我们再也不用担心它会被谁调用了。这就是我们新的、始终可还原的 `delegatecall` 函数，`doDelegateCallAndRevert()`：
 
 ```solidity
 function doDelegateCallAndRevert(address logic, bytes calldata callData) external {
@@ -94,7 +94,7 @@ function doDelegateCallAndRevert(address logic, bytes calldata callData) externa
 }
 ```
 
-Technically that function performs and returns all the information a user needs, but expecting and having to parse a revert is non-intuitive. So we'll still implement a top-level `revertExec()` function that calls `doDelegateCallAndRevert()`, decodes the revert, and either returns or throws its result, like a normal function behaves.
+从技术上讲，该函数会执行并返回用户需要的所有信息，但代码中的还原操作并不直观。因此，我们仍将实现一个上层函数 `revertExec()`，该函数将调用 `doDelegateCallAndRevert()`，并对还原操作进行解码，像普通函数一样返回或抛出其结果。
 
 ```solidity
 interface IReadOnlyDelegateCall {
@@ -121,13 +121,13 @@ function revertExec(address logic, bytes calldata callData) external view {
 }
 ```
 
-Compared to the first method, this one is a bit less intuitive (who writes a function that always reverts?) but provides stronger safety guarantees. Neither is really that much code so if you're unsure of which one you need, take this one. 😉
+与第一种方法相比，这种方法不太直观（谁会写一个总是还原的函数？），但其能提供强有力的安全保障。这两种方法的代码量都不大，所以如果你不确定要使用哪种方法，就用这种方法吧。😉
 
-## The Example
+## 示例
 
-The [example code](./ReadOnlyDelegatecall.sol) is a simple (pointless) contract that has a single, private storage variable `_foo`. Because `_foo` is `private`, external contracts wouldn't normally be able to read its value. But since it implements both `staticExec()` and `revertExec()` you can use either to pass in a logic contract that is able to read that storage slot through the magic of `delegatecall()`. In a realistic application, you would also take the opportunity to perform additional computation on that state. The [tests](../../test/ReadOnlyDelegatecall.t.sol) demonstrate how to use it and what happens if the logic function tries to alter state in both approaches (which fails, obviously).
+[示例代码](./ReadOnlyDelegatecall.sol)是一个简单（无意义）的合约，它只有一个私有存储变量 `_foo`。由于 `_foo` 是 `private` 性质的，外部合约无法正常读取它的值。但由于它同时实现了 `staticExec()` 和 `revertExec()`，因此你可以使用其中任何一个来传递一个逻辑合约，该合约可以通过 `delegatecall()` 的黑魔法读取其存储槽。 在实际应用中，你还可以利用这个黑魔法对该状态执行额外的计算。[测试用例](.../../test/ReadOnlyDelegatecall.t.sol)中演示了如何使用它，以及如果逻辑函数在两种方法中都试图变更状态（显然都失败了），将会发生什么情况。
 
 
-## In The Real World
-- (Gnosis) Safe uses the [delegatecall-and-revert]((https://github.com/safe-global/safe-contracts/blob/v1.3.0-libs.0/contracts/common/StorageAccessible.sol#L36)) approach to [simulate](https://github.com/safe-global/safe-contracts/blob/v1.3.0-libs.0/contracts/handler/CompatibilityFallbackHandler.sol#L87) the effect of transactions executed from the context of the safe contract.
-- The Party Protocol also [uses delegatecall-and-revert](https://github.com/PartyDAO/party-protocol/blob/e5be102b2cc2304768b21a3ce913cd28f2965089/contracts/utils/ReadOnlyDelegateCall.sol#L25) to forward [unhandled functions](https://github.com/PartyDAO/party-protocol/blob/e5be102b2cc2304768b21a3ce913cd28f2965089/contracts/party/PartyGovernance.sol#L325) to an upgradeable component of their Party contracts in a read-only manner.
+## 现实案例
+- （[Gnosis](https://www.gnosis.io)）[Safe](https://safe.global) 使用委托调用和还原方法来[模拟](https://github.com/safe-global/safe-contracts/blob/v1.3.0-libs.0/contracts/handler/CompatibilityFallbackHandler.sol#L87)在安全合约上下文中执行交易的效果。
+- Party 协议也使用了[委托调用和还原](https://github.com/PartyDAO/party-protocol/blob/e5be102b2cc2304768b21a3ce913cd28f2965089/contracts/utils/ReadOnlyDelegateCall.sol#L25)方法，以只读方式将[未处理的函数](https://github.com/PartyDAO/party-protocol/blob/e5be102b2cc2304768b21a3ce913cd28f2965089/contracts/party/PartyGovernance.sol#L325)转发到其 Party 合约的可升级组件中。

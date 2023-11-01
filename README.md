@@ -49,8 +49,8 @@
     - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
     - Transfer tokens securely without a direct allowance, in a way that works for all (legacy and modern) ERC20s.
-- [Read-Only Delegatecall](./patterns/readonly-delegatecall)
-    - Execute arbitrary delegatecalls in your contract in a read-only manner, without side-effects.
+- [只读委托调用](./patterns/readonly-delegatecall)
+    - 以只读方式执行合约中的任意委托调用，并不会产生副作用。
 - [将授权转账权限的合约单独抽象出来](./patterns/separate-allowance-targets/)
     - 避免在某个被授权了转账权限的合约升级时不得不迁移过去进行的授权
 - [堆栈过深的解决方案](./patterns/stack-too-deep/)
