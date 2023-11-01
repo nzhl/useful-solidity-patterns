@@ -48,7 +48,7 @@
 - [打包存储](./patterns/packing-storage)
     - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
-    - Transfer tokens securely without a direct allowance, in a way that works for all (legacy and modern) ERC20s.
+    - 适用于所有（传统和现代）ERC20 的方式安全地转移代币，无需直接授权额度。
 - [Read-Only Delegatecall](./patterns/readonly-delegatecall)
     - Execute arbitrary delegatecalls in your contract in a read-only manner, without side-effects.
 - [将授权转账权限的合约单独抽象出来](./patterns/separate-allowance-targets/)
