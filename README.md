@@ -29,8 +29,8 @@
     - 使用 `eth_call` 执行快速且复杂的链上数据查询以及0成本的调用模拟
 - [显式存储桶](./patterns/explicit-storage-buckets)
     - 为可升级合约提供更安全、有保证的非重叠存储。
-- [Externally Owned Account Checks](./patterns/eoa-checks)
-    - The consequences of interacting with contracts vs regular wallets, and how to identify them.
+- [个人钱包地址（非合约地址）类型检查](./patterns/eoa-checks)
+    - 介绍与个人地址和合约地址交互会产生的不同后果，和如何甄别这两种地址。
 - [工厂证明](./patterns/factory-proofs)
     - 在链上证明合约是由可信任的部署人部署的。
 - [初始化可升级合约](./patterns/initializing-upgradeable-contracts)
@@ -48,7 +48,7 @@
 - [打包存储](./patterns/packing-storage)
     - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
-    - Transfer tokens securely without a direct allowance, in a way that works for all (legacy and modern) ERC20s.
+    - 适用于所有（传统和现代）ERC20 的方式安全地转移代币，无需直接授权额度。
 - [只读委托调用](./patterns/readonly-delegatecall)
     - 以只读方式执行合约中的任意委托调用，并不会产生副作用。
 - [将授权转账权限的合约单独抽象出来](./patterns/separate-allowance-targets/)

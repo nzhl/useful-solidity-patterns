@@ -1,64 +1,63 @@
 # Permit2
-- [📜 Example Code](./Permit2Vault.sol)
-- [🐞 Tests](../../test/Permit2Vault.t.sol)
+- [📜 示例代码](./Permit2Vault.sol)
+- [🐞 测试](../../test/Permit2Vault.t.sol)
 
-When a protocol needs to move tokens held by a user, the first step is usually to have the user to set an allowance on the [ERC20](https://eips.ethereum.org/EIPS/eip-20) token for their contract(s). This is the natural approach prescribed by the ERC20 standard and, despite its UX and security drawbacks, has rarely been challenged. [EIP-2612](https://eips.ethereum.org/EIPS/eip-2612) was an improvement on the ERC20 standard that addressed those drawbacks but could only apply to new tokens. [Permit2](https://github.com/Uniswap/permit2) leverages both models to extend the UX and security advantages of EIP-2612 to also cover vanilla ERC20 tokens!
+当一个协议需要将token从持有的用户手中转移时，第一步通常是让用户为其合约的ERC20代币设置限额，这是[ERC20](https://eips.ethereum.org/EIPS/eip-20)标准规定的方法，尽管存在UX和安全缺陷，但很少受到挑战。[EIP-2612](https://eips.ethereum.org/EIPS/eip-2612)是对ERC20标准的改进，可以解决这些缺陷但是只能应用于新的token。[Permit2](https://github.com/Uniswap/permit2)利用这两种模型来扩展 EIP-2612 的用户体验和安全优势，并且可以涵盖原版 ERC20 代币
 
-To set the stage for illustrating how revolutionary Permit2 can be, let's very quickly look at the preceding solutions in a common scenario where a protocol needs to move tokens held by our perpetual heroine, Alice.
+为了说明 Permit2 革命性变革，让我们快速回顾之前的通用场景的解决方案：协议需要移动Alice持有的代币。
 
-## Standard Allowance Model
+## 标准授权模型
 
-First, the traditional allowance-based approach, which typically goes like this:
+首先，传统的基于限额的方案，通常是这样的：
 ![erc20 transferFrom flow](./erc20-transferFrom.png)
+1. Alice首先调用ERC20合约的`approve()`方法以向合约授权可使用额度
+2. Alice与合约进行交互，合约继而调用ERC20合约的`transferFrom()`方法，将她的token进行转移
 
-1. Alice calls `approve()` on an ERC20 to grant a spending allowance to a contract.
-2. Alice calls an interaction function on the contract, which in turn calls `transferFrom()` on the ERC20 token contract, moving her tokens.
+显而易见，这种模式是可行的（它无处不在），并且非常灵活因为协议可以不中断，长期的操作用户授权的token，但是它有两个众所周知的现实问题：
 
-Obviously this model works (it's ubiquitous) and can ultimately be quite flexible since the protocol will usually wind up with uninterrupted, long-term access to the user's tokens. But it suffers from two well-known, real-world issues:
+- **糟糕的用户体验**: 用户必须对每个需要交互的新协议进行approve，并且大多数都是单独的交易 💸
+- **安全性差**: 应用通常会向用户要求无上限的token授权额度，以避免重复上述用户体验问题。这意味着，如果协议被攻击，所有授权过token给协议的用户，他们的代币都有可能被从钱包中转出 🙈
 
-- **Bad UX**: Users must approve *every* new protocol on each token they intend to use with it, and this is almost always a separate transaction. 💸
-- **Bad security**: Applications often ask for unlimited allowances to avoid having to repeat the above UX issue. This means that if the protocol ever gets exploited, every user's token that they've approved the protocol to spend can potentially be taken right out of their wallets. 🙈
-
-## Permit (EIP-2612) Model
-Next, let's look at the approach enabled by the EIP-2612 extension to ERC20, which typically goes like:
-
+## Permit (EIP-2612) 模型
+接下来，让我们看下ERC20d的拓展EIP-2612的启用方法，通常如下所示：
 ![erc2612 permit flow](./erc2612-permit.png)
 
-1. Alice signs an off-chain "permit" message, signaling that she wishes to grant a contract an allowance to spend a (EIP-2612) token.
-2. Alice submits the signed message as part of her interaction with said contract.
-3. The contract calls `permit()` on the token, which consumes the permit message and signature, granting the contract an allowance.
-4. The contract now has an allowance so it can call `transferFrom()` on the token, moving tokens held by Alice.
+1. Alice 签署了一条链下“许可”消息，表示她希望授予合约使用（EIP-2612）代币。
+2. Alice 提交签名的消息，作为她与合约交互的一部分信息。
+3. 合约对token调用 `permit()` 方法，接收许可消息和签名，授予token额度给合约。
+4. 合约现在有token使用权限，所以它可以调用 `transferFrom()` 代币，移动Alice持有的代币。
 
-This solves both issues from the conventional, vanilla ERC20 approach:
-- The user never has to submit a separate `approve()` transaction.
-- There is no longer a necessary evil of dangling allowances since permit messages grant an instantaneous allowance that is often spent right away. These messages can also choose a more reasonable allowance amount and, more importantly, an expiration time on when the permit message can be consumed.
+这解决了传统ERC20方法的两个问题：
+- 用户不需要提交独立的`approve()` 交易
+- 悬而未决的授权额度不再是必须的风险，因为许可消息授予的即时额度通常会立即花费。许可消息还可以选择更合理的限额金额，更重要的是，可以选择可以使用许可消息的到期时间。
 
-But the tragic reality is that most times this approach is not an option. Since EIP-2612 is an extension of the ERC20 standard, this functionality is only possible on new (or upgradeable) tokens. So there are very few major tokens in the wild where this pattern actually works.
+但悲惨的现实是，大多数时候这种方法并不是一种选择。由于 EIP-2612 是 ERC20 标准的扩展，因此此功能仅在新的（或可升级的）token上可用。因此这种模式实际起作用的主要代币很少。
 
-*(Side note: EIP-2612 permits have been explored in more detail in a separate guide [here](../erc20-permit)!)*
+*(旁注：EIP-2612 许可已在此处的单独指南中进行了更详细的[探讨](../erc20-permit)!)*
 
-## Permit2 Model
+## Permit2 模型
 
-Finally, let's dive into the Permit2 approach, which echoes elements from both preceding solutions:
+最后，让我们深入了解 Permit2 方法，该方法与上述两个解决方案中的元素相呼应：
 
 ![permit2 flow](./permit2-permitTransferFrom.png)
 
-1. Alice calls `approve()` on an ERC20 to grant an infinite allowance to the canonical Permit2 contract.
-2. Alice signs an off-chain "permit2" message that signals that the protocol contract is allowed to *transfer* tokens on her behalf.
-3. Alice calls an interaction function on the protocol contract, passing in the signed permit2 message as a parameter.
-4. The protocol contract calls `permitTransferFrom()` on the Permit2 contract, which in turn uses its allowance (granted in 1.) to call `transferFrom()` on the ERC20 contract, moving the tokens held by Alice.
+1. Alice对ERC20调用 `approve()` 方法为规范的Permit2合约授予无限的额度。
+2. Alice 签署了一条链下“permit2”消息，该消息表示允许协议合约代表她*转移*代币。
+3. Alice 在协议协定上调用交互函数，将签名的 permit2 消息作为参数传递。
+4. 协议合约调用 `permitTransferFrom()` Permit2 合约，而 Permit2 合约又使用其授权的额度（在 1 中授予）调用 `transferFrom()` ERC20 合约，移动 Alice 持有的代币。
 
-It might seem like a regression to require the user to grant an explicit allowance first. But rather than granting it to the protocol directly, the user will instead grant it to the canonical Permit2 contract. This means that if the user has already done this before, say to interact with another protocol that integrated Permit2, every other protocol can skip that step! 🎉
+这似乎又回到了要求用户首先显式授予。但是，用户不会直接将其授予协议，而是将其授予规范的 Permit2 合约。这意味着，如果用户之前已经这样做过，比如与集成 Permit2 的另一个协议进行交互，则所有其他协议都可以跳过该步骤！🎉
 
-Instead of directly calling `transferFrom()` on the ERC20 token to perform a transfer, a protocol will call `permitTransferFrom()` on the canonical Permit2 contract. Permit2 sits between the protocol and the ERC20 token, tracking and validating permit2 messages, then ultimately using its allowance to perform the `transferFrom()` call directly on the ERC20. This indirection is what allows Permit2 to extend EIP-2612-like benefits to every existing ERC20 token! 🎉
+协议将调用 `permitTransferFrom()` 规范的 Permit2 合约，而不是直接调用 `transferFrom()` ERC20 代币来执行转移。Permit2 位于协议和 ERC20 令牌之间，跟踪和验证 permit2 消息，然后最终使用其允许直接在 ERC20 上执行 `transferFrom()` 调用。这种间接性允许 Permit2 将类似 EIP-2612 的模式扩展到每个现有的 ERC20 代币！ 🎉
 
-Also, like EIP-2612 permit messages, permit2 messages expire to limit the the attack window of an exploit. 
+此外，与 EIP-2612 许可消息一样，permit2 消息存在过期时间，以限制漏洞利用的攻击窗口。
 
-## Integrating Permit2
+## 集成 Permit2
 
-For a frontend integrating Permit2, it will need to collect a user signature that will be passed into the transaction. The Permit2 message struct (`PermitTransferFrom`) signed by these signatures must comply with the [EIP-712](https://eips.ethereum.org/EIPS/eip-712) standard (for which [we have a general guide](../eip712-signed-messages/)), using the Permit2 domain and type hashes defined [here](https://github.com/Uniswap/permit2/blob/main/src/EIP712.sol) and [here](https://github.com/Uniswap/permit2/blob/main/src/libraries/PermitHash.sol). Be aware that the `spender` field for the EIP-712 Permit2 object needs to be set to the contract address that will be consuming it.
+对于集成 Permit2 的前端，它需要收集将传递到交易中的用户签名。这些签名的 Permit2 消息结构 （ `PermitTransferFrom` ） 必须符合 [EIP-712](https://eips.ethereum.org/EIPS/eip-712) 标准（前面有介绍过的[指南](../eip712-signed-messages/)），使用此处和此处定义的 Permit2 域和类型哈希[EIP-712](https://github.com/Uniswap/permit2/blob/main/src/EIP712.sol)。请注意，EIP-712 Permit2 对象的 `spender` 字段需要设置为将使用它的合约地址。
 
-The smart contract integration is actually fairly easy! Any function that needs to move tokens held by a user just needs to accept any unknown permit message details and the corresponding EIP-712 user signature. To actually move the tokens, we will call `permitTransferFrom()` on the canonical Permit2 contract. That function is declared as:
+智能合约的集成实际上相当容易！任何需要移动用户持有的token的功能只需要接受任何未知的许可消息详细信息和相应的 EIP-712 用户签名。为了实际移动token，我们将调用 `permitTransferFrom()` 规范的 Permit2 合约。该函数声明为：
+
 
 ```solidity
     function permitTransferFrom(
@@ -69,34 +68,32 @@ The smart contract integration is actually fairly easy! Any function that needs 
     ) external;
 ```
 
-The parameters for this function are:
-- `permit` - The permit2 message details, with the following fields:
-    - `permitted` - A `TokenPermissions` struct with the following fields:
-        - `token` - Address of the token to be transferred.
-        - `amount` - *Maximum* amount that can be transferred when consuming this permit.
-    - `nonce` - A unique number, chosen by our app, to identify this permit. Once a permit is consumed, any other permit using that nonce will be invalid.
-    - `deadline` - The latest possible block timestamp for when this permit is valid.
-- `transferDetails` - A struct containing the transfer recipient and transfer amount, which can be less than the amount the user signed for.
--  `owner` - Who signed the permit and also holds the tokens. Often, in simple use-cases where the caller and the user are one and the same, this should be set to the caller (`msg.sender`). But in more exotic integrations, [you may need more sophisticated checks](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#security-considerations).
-- `signature` - The corresponding EIP-712 signature for the permit2 message, signed by `owner`. If the recovered address from signature verification does not match `owner`, the call will fail.
+此函数的参数为：
+- `permit` - permit2消息详细信息，包括以下字段：
+    - `permitted` -  `TokenPermissions` 具有以下字段的结构:
+        - `token` - 要转移的token的地址
+        - `amount` - 此许可能转移的*最大*金额
+    - `nonce` - 由我们的应用程序选择的唯一编号，用于标识此许可消息。一旦使用过该许可消息，使用该随机数的任何其他许可消息都将无效
+    - `deadline` - 此许可消息有效的区块时间戳
+- `transferDetails` - 包含转账接收方和转账金额的结构，可以小于用户签名的授权额度
+-  `owner` - 谁签署了许可并持有token。通常，在调用方和用户相同的简单用例中，应将其设置为调用方 （ `msg.sender` ）。但在更复杂的集成中，您可能需要更复杂的[检查](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#security-considerations)
+- `signature` - permit2消息的相应 EIP-712 签名，由owner签名。如果从签名验证中恢复的地址与owner不匹配，则调用将失败。
 
-> 🛈 Note that the `PermitTransferFrom` struct does not include the `spender` field found in the [EIP-712 typehash definition for the permit message](https://github.com/Uniswap/permit2/blob/main/src/libraries/PermitHash.sol#L21). It will be populated with our contract's address (the direct caller of `permitTransferFrom()`) during processing. This is why the `spender` field of the EIP-712 object the user signs must be the address of this contract.
+> 请注意，该 `PermitTransferFrom` 结构不包括在许可消息的 EIP-712 类型哈希定义中找到的 `spender` 字段[EIP-721中的typehash字段定义](https://github.com/Uniswap/permit2/blob/main/src/libraries/PermitHash.sol#L21)。在处理过程中，它将被合约地址填充（直接 `permitTransferFrom()` 调用方）。这就是为什么用户签名的 EIP-712 对象的 `spender` 字段必须是此合约的地址。
 
-### Advanced Integrations
-This guide covers the basic functionality offered by Permit2 but there's more you can do with it!
-- [Custom Witness Data](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#single-permitwitnesstransferfrom) - You can append custom data to the permit2 message, which means the Permit2 signature validation will extend to that data as well.
-- [Batch Transfers](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#batched-permittransferfrom) - A batched permit2 message for performing multiple transfers, secured by a single signature.
-- [Smart Nonces](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#nonce-schema) - Under the hood, nonces are actually written as bit fields in an storage slot indexed by the upper 248 bits. You can save a signficant amount of gas by carefully choosing nonce values that reuse storage slots.
-- [Callback signatures](https://github.com/Uniswap/permit2/blob/main/src/libraries/SignatureVerification.sol#L43) - Permit2 supports [EIP-1271](https://eips.ethereum.org/EIPS/eip-1271) callback signatures, which allow smart contracts to also sign permit2 messages.
-- [Permit2 Allowances](https://docs.uniswap.org/contracts/permit2/reference/allowance-transfer) - For protocols that need more flexibility, Permit2 supports a more conventional allowance model that gets the added benefit of expiration times. 
+### 高级集成
+这个指南涵盖了Permit2提供的一些基础的功能，下面这些提供了Permit2的更多使用
+- [自定义见证数据](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#single-permitwitnesstransferfrom) - 您可以将自定义数据附加到 Permit2 消息中，这意味着 Permit2 签名验证也将扩展到该数据。
+- [批量交易](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#batched-permittransferfrom) - 用于执行多次传输的批量Permit2消息，由单个签名保护
+- [智能Nonces](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer#nonce-schema) - Nonce实际上以位字段的形式写入由高 248 位索引的存储槽中。通过仔细选择重复使用存储槽的随机数值，您可以节省大量的 Gas。
+- [回调签名](https://github.com/Uniswap/permit2/blob/main/src/libraries/SignatureVerification.sol#L43) - Permit2 支持 [EIP-1271](https://eips.ethereum.org/EIPS/eip-1271) 回调签名，这允许智能合约也签署 Permit2 消息。
+- [Permit2 配额](https://docs.uniswap.org/contracts/permit2/reference/allowance-transfer) - 对于需要更大灵活性的协议，Permit2 支持更传统的配额模型，该模型可以获得过期时间的额外好处
 
-## The Demo
+## 示例
 
-The provided [example code](./Permit2Vault.sol) is a simple vault that users can deposit ERC20 tokens into using Permit2, which they can later withdraw. Because it's multi-user, it needs to initiate the transfer in order to reliably credit which account owns which balance. Normally this requires granting an allowance to the vault contract and then having the vault perform the `transferFrom()` on the token itself, but Permit2 allows us to skip that hassle!
-
-The [tests](../../test/Permit2Vault.t.sol) deploy a local, bytecode fork of the mainnet Permit2 contract  to test an instance of the vault against. The EIP-712 hashing and signature generation is written in solidity/foundry as well, but should normally be performed off-chain at the frontend/backend level in your language of choice.
-
-## Resources
-- [Permit2 Announcement](https://uniswap.org/blog/permit2-and-universal-router) - The canonical Permit2 address can also be found here.
-- [Permit2 Repo](https://github.com/Uniswap/permit2) - Permit2 Smart contracts
-- [Permit2 `SignatureTransfer` Docs](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer) - Official Permit2 docs provided by Uniswap.
+提供的[示例代码](./Permit2Vault.sol)是一个简单的金库，用户可以使用 Permit2 将 ERC20 代币存入其中，然后可以提取。由于它是多用户的，因此需要启动转账才能可靠地记入哪个帐户拥有哪个余额。通常，这需要向金库合约授予津贴，然后让金库对代币本身执行 `transferFrom()` ，但 Permit2 允许我们跳过这个麻烦！
+这些[测试](../../test/Permit2Vault.t.sol)部署了主网 Permit2 合约的本地字节码分支来测试 Vault 的实例。 EIP-712 哈希和签名生成也是用 Solidity Foundry 编写的，但通常应该在前端/后端以您选择的语言进行链下执行。
+## 资源
+- [Permit2 公告](https://uniswap.org/blog/permit2-and-universal-router) - 标准的 Permit2 地址也可以在此处找到。
+- [Permit2 仓库](https://github.com/Uniswap/permit2) - Permit2 智能合约
+- [Permit2 `SignatureTransfer` 文档](https://docs.uniswap.org/contracts/permit2/reference/signature-transfer) - Uniswap 提供的官方 Permit2 文档
