@@ -1,9 +1,9 @@
-# `onlyDelegateCall` / `noDelegateCall`
+# 仅允许委托调用 / 不允许委托调用
 
-- [📜 Example Code](./DelegateCallModifiers.sol)
-- [🐞 Tests](../../test/DelegateCallModifiers.t.sol)
+- [📜 示例代码](./DelegateCallModifiers.sol)
+- [🐞 测试](../../test/DelegateCallModifiers.t.sol)
 
-In [proxy](../basic-proxies/) architectures, a thin proxy contract uses its fallback function to forward all calls it receives to a "logic" contract. It does so using a low-level `delegatecall()` to the logic contract. A delegatecall executes another contract's code but inside the same execution context as the caller. This means call properties such as `msg.sender`, `msg.value`, and `address(this)`, as well as all storage, are inherited from the contract issuing the `delegatecall()`. This allows a proxy contract to run bytecode of another contract is if it were its own.
+在[代理合约](../basic-proxies/)的架构中，一个简约化的代理合约利用它的fallback函数将所有对其调用命令转至另一个逻辑合约去执行。这个方法使用了低阶函数 `delegatecall()` 来令逻辑合约的代码在此代理合约的背景下执行。这意味着一些全局变量比如 `msg.sender`，`msg.value`，和 `address(this)`，还有所有的储存空间，都指的是代理合约的（发起 `delegatecall()` 的那个合约）。这就允许代理合约去跑其他合约的字节码，仿佛是它自己的一样。
 
 
 ```
@@ -22,13 +22,13 @@ User ───────────────►   Proxy Contract   │    
                     └────────────────────┘       (shared state)
 ```
 
-## Logic Contracts Are Still Contracts
-In proxy setups, users should interact directly with the proxy contract and never the logic contract. However, logic contracts are often completely valid and fully functional contracts on their own.  It's easy to forget that there is usually nothing actually stopping a user from directly interacting with said contracts. In most cases, this has little impact on the rest of the protocol since logic contracts aren't typically permissioned within systems. But there are some scenarios where you will want to either prevent a logic contract from being called on directly or even require that a logic contract be called on directly. Luckily, there's a pretty cheap and easy way to satisfy both.
+## 逻辑合约也是独立的合约
+在代理执行的架构中，用户应该直接与代理合约交互而不去直接接触逻辑合约。然而，逻辑合约本身也经常是完整有效带有各种可独立执行的函数的这样一种合约。所以容易被遗忘的一件事就是，通常情况下。逻辑合约无法阻止某用户直接对其发起交互。大多数时候这不算什么大事情，因为逻辑合约本身并不存在于你的产品体系之内。然而也存在某些情况下你会想要某个逻辑合约的函数不允许被直接调用，抑或是仅允许被直接调用而不允许委托调用。幸好，有一种既低价又简单的方式去做这两件事。
 
-## `onlyDelegateCall`
-In 2017 the [Parity multisig wallet was infamously hacked](https://blog.openzeppelin.com/parity-wallet-hack-reloaded/), with ~$150M worth of ETH becoming trapped forever across many instances of a now worthless smart wallet. Individual instances of the wallet did something akin to proxy architectures by delegatecalling into a shared library contract for some of its logic. This library contract had an initialize function that was intended to be (delegate) called during construction of a new wallet. This would populate some state, notably the wallet's owner, in the new wallet and mark it as initialized so it couldn't be initialized again. However, the developers didn't consider someone calling the initialize function *directly* on the library/logic contract. Since no one had done it before, the first person to do so could initialize themselves as the owner within the logic contract's context. By itself this would amount to very little but, critically, the logic contract also had a `kill()` function that, if called by the owner, would `selfdestruct` the contract.
+## `onlyDelegateCall` 仅允许委托调用
+2017年[Parity多签钱包被黑](https://blog.openzeppelin.com/parity-wallet-hack-reloaded/)导致了约1.5亿美元价值的ETH被永久锁死在一众现已完全无用的智能钱包之中。每一个钱包个体都要做类似于代理执行的行为，将一些函数调用命令委托至一个被共享的库作为其逻辑合约来执行这些操作。这个逻辑合约含有一个初始化的函数，本意是来用作一个当某个钱包在建立的过程中可被其委托调用的函数，此函数可以初始化一些属于这个新钱包个体的状态变量值，并将其标记为已初始化所以不可再调用初始化。然而，开发人员没有考虑到有人会去*直接*在逻辑合约本身上调用这个函数。第一个做这件事的人可以令其自己成为这个逻辑合约的主人。这个动作本身，对于那些钱包个体来说，没什么大不了的，可惜的是，这个逻辑合约自己另带有一个 `kill()` 函数，若是被合约主人执行了这个函数则此逻辑合约将自毁。
 
-When a `selfdestruct()` is encountered, it deletes the contract bytecode at `address(this)`. If `kill()` is called through a wallet instance, it would only destroy the wallet. But when called directly on the logic contract, it destroys the logic contract. With bytecode no longer existing at the logic contract address that wallets pointed to, any `delegatecall()` to the logic contract would either do nothing or ultimately result in a failure.
+一旦自毁， `address(this)` 合约的可执行字节码就会被抹去。如果 `kill()` 是由一个钱包个体通过委托调用来发起的，则这个钱包将被毁。但是如果此函数是直接在逻辑合约本体上发起调用的，那么它毁掉的就是逻辑合约。若是逻辑合约的可执行字节码已不存在，那么任何来自于钱包指向此逻辑合约地址的 `delegatecall()` 都将什么事都做不成。比如说，取钱功能就废了。
 
 ![self-destruct-a-la-parity](./parity-self-destruct.png)
 
