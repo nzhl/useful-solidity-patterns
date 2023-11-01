@@ -32,21 +32,19 @@ User ───────────────►   Proxy Contract   │    
 
 ![self-destruct-a-la-parity](./parity-self-destruct.png)
 
-The lesson from this is that if your logic contract can self-destruct OR if your logic contract can delegatecall to an arbitrary contract address (which could thereby self-destruct), you should strongly consider limiting the functions on that contract to only being called in a delegatecall context. Modern solidity (Parity did not have this luxury at the time) makes it quite easy to create a modifier, `onlyDelegateCall`, that restricts functions in exactly this way:
+从这汲取的教训就是如果你的逻辑合约可以自毁，或者你的逻辑合约可以发起委托调用至其他什么有自毁功能的合约，你就应该认真地考虑给合约加以限制令他只允许从别处而来的委托调用。现在的solidity可以很轻易地设计一个修饰函数比如 `onlyDelegateCall`，来实现这种限制。Parity那时候就没这个福气。
 
 ```solidity
 abstract contract DelegateCallModifiers {
-    // The true address of this contract. Where the bytecode lives.
+    // 本合约的地址。本合约的可执行字节码存在于此。
     address immutable public DEPLOYED_ADDRESS;
 
     constructor() {
-        // Store the deployed address of this contract in an immutable,
-        // which maintains the same value across delegatecalls.
+        // 把本合约部署的地址存为不可改变量，则其值在各种delegatecall中都是一个不变值
         DEPLOYED_ADDRESS = address(this);
     }
 
-    // The address of the current executing contract MUST NOT match the
-    // deployed address of this logic contract.
+    // 目前正在执行的合约环境的地址不可以与此逻辑合约的部署地址一致。
     modifier onlyDelegateCall() {
         require(address(this) != DEPLOYED_ADDRESS, 'must be a delegatecall');
         _;
@@ -54,29 +52,28 @@ abstract contract DelegateCallModifiers {
 }
 ```
 
-This example is of a base contract that you would inherit from in your logic contract and apply the modifier to risky functions. It works because:
-- There is no way to delegatecall into a constructor so `address(this)` inside the constructor is always the deployed address of the currrent contract.
-- Immutable types do not live in a contract's usual storage, but instead becomes a part of its deployed bytecode, so it will still be accessible even inside a delegatecall.
-- Since `address(this)` is inherited from the contract that issued the `delegatecall()` and the immutable-stored `DEPLOYED_ADDRESS` stays with the bytecode being executed, inside of a delegatecall they will differ.
+这个例子是一个模版合约你可以让你的逻辑合约去继承它，就可以使用那个修饰函数来限制你的任何其他带有风险的函数了。它是有效的，原因如下：
+- 因为不可能对一个构造函数去委托调用，所以构造函数内部的 `address(this)` 永远将是此合约本体将会被部署在的地址。
+- 不可更改的变量类型不使用合约的常规储存空间来存放其值，而是将值存放在部署的合约字节码之内，所以这个值在一个委托调用的语境之下依然是可以被获取的。
+- 因为 `address(this)` 是来自于发起 `delegatecall()` 的那个合约，而那个不可变的 `DEPLOYED_ADDRESS` 是从被执行的字节码中读取而来，所以这两者就是不同的。
 
-## `noDelegateCall`
-Some protocols have tried to apply restrictive licenses that prohibit forking their code. But people have cunningly tried to circumvent these licenses by using `delegatecall()`, which could simply reuse the already deployed instance of existing contracts under the guise of another product. Both V1 and V2 of Uniswap have been forked so frequently to the point of becoming a meme but why don't we see the same trend with Uniswap V3? Uniswap V3 [went a step further](https://github.com/Uniswap/v3-core/pull/327#issuecomment-813462722) by outright preventing delegatecalls into many of their core contracts.
+## `noDelegateCall` 不允许委托调用
+有些合约尝试去利用具有限制性的许可证来避免他们的代码被分叉。但是有人就会狡猾地利用 `delegatecall()` 来规避这些许可的限制，这样他们可以用另一个产品做外表伪装而实际内核运行的还是别人已经部署好了的合约。Uniswap的初版和第二版都被分叉了无数次多到都有了梗图来取笑了，但是为什么第三版就没有这样呢？Uniswap V3 [更近一步看](https://github.com/Uniswap/v3-core/pull/327#issuecomment-813462722)它直接在其很多核心合约中禁止了被委托调用。
 
-To create a `noDelegateCall` modifier, which is the inverse of the `onlyDelegateCall` modifier, we just flip the inequality. Now we *want* our execution context's address to match our logic contract's deployed address. If any other contract tries to delegatecall into our logic contract, `address(this)` will not match `DEPLOYED_ADDRESS`. Easy!
+创建一个 `noDelegateCall` 修饰函数（ `onlyDelegateCall` 的反向作用）我们仅需把不等号调换成等号即可。现在我们*想要*执行背景的地址与本合约的部署地址一致。如果其他任何合约发过来委托调用，这两者都不会相一致。小菜一碟！
 
 ```solidity
-// The address of the current executing contract MUST match the
-// deployed address of this logic contract.
+// 执行的背景的地址与本合约的部署地址必须一致
 modifier noDelegateCall() {
     require(address(this) == DEPLOYED_ADDRESS, 'must not be delegatecall');
     _;
 }
 ```
 
-## The Example Code
-[The example project](./DelegateCallModifiers.sol) that accompanies this guide implements both modifiers to be used inside a basic proxy architecture. We have two versions of a logic contract, `Logic` and `SafeLogic`, to demonstrate a potential use-case for each modifier. The `Logic` contract exposes two functions, each with vulnerabilities:
+## 示例代码
+[这个例子](./DelegateCallModifiers.sol)在一个代理合约的架构中使用了这两种修饰函数。我们有两个版本的逻辑合约， `Logic` 和 `SafeLogic`，可用来展示这两个修饰各自的用武之处。 `Logic` 有两个函数，各自都有漏洞：
 
-- `die()`, which is intended to self-destruct the *proxy* contract instance when called by the initialized owner. However, like in the Parity hack, the `Logic` contract can be initialized directly which can allow someone to call `die()` directly on it, bricking every proxy contract that uses it.
-- `skim()`, which is a convenience function deisgned to allow anyone to take any ETH mistakenly sent to the logic contract. However, there is nothing stopping this function from being called through a proxy instance, which would mean all proxies that use this logic contract can have ETH taken out of them at any time.
+- `die()`，它的本意是想，当被初始化时指定的主人发起委托调用的时候，让*代理合约*执行自毁。然而，就像Parity被黑的那次例子一样， `Logic` 合约可以被其他人在本体上直接初始化，指定主人，然后直接调用 `die()`，这样就破坏掉所有依赖于这个逻辑合约地址的其他代理合约。
+- `skim()` 是一个很方便的函数，可以允许任何人取走之前被错误发送至此合约地址中的ETH。但是，这个函数可以被委托调用，意思是其他任何合约都可以利用这个逻辑执行来让自己的ETH在任何时候被取走。
 
-The `SafeLogic` contract re-implements and corrects the vulnerable functions in `Logic` by applying an `onlyDelegateCall` modifier to `die()` and a `noDelegateCall` modifier to `skim()`. For examples on how to exploit the vulnerable functions, see the [tests](../../test/DelegateCallModifiers.t.sol).
+`SafeLogic` 合约重做并修复了这些在 `Logic` 里有漏洞的函数，它在 `die()` 函数上加以 `onlyDelegateCall` 限制，在 `skim()` 上加以 `noDelegateCall` 限制。在[测试](../../test/DelegateCallModifiers.t.sol)里面有如何去攻击那些有漏洞的函数的例子。
