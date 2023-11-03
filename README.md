@@ -38,7 +38,7 @@
 - [默克尔证明](./patterns/merkle-proofs)
     - 证明潜在大型固定集合成员资格的高效存储方法。
 - [Multicall](./patterns/multicall)
-    - Allow users to arbitrarily compose and perform multiple operations on your contract in a single transaction.
+    - 允许用户在单次交易中任意组合和执行多个操作
 - [NFT 接收钩子](./patterns/nft-receive-hooks)
     - 使用 ERC721/ERC1155 转移回调以避免用户提前设置限额。
 - [链下存储](./patterns/off-chain-storage)
