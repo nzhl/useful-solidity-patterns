@@ -49,7 +49,7 @@ function onERC721Received(address operator, address from, uint256 tokenId, bytes
 ## ERC1155
 [ERC1155 代币](https://eips.ethereum.org/EIPS/eip-1155#erc-1155-token-receiver)也通过其 `onERC1155Received()` 和 `onERC1155BatchReceived()` 钩子支持类似的机制，其语义几乎完全相同。
 
-## 真实使用情况
+## 现实案例
 - 官方 Mooncats 使用 `onERC721Received()` 将非官方封装的 mooncats 转换为官方封装的 mooncats，当有人将它们转入合约时。
 - [0x 交换协议](https://github.com/0xProject/protocol/blob/development/contracts/zero-ex/contracts/src/features/nft_orders/ERC721OrdersFeature.sol#L462)的 ERC721 订单功能接受以"数据"参数编码的补充 NFT 买入订单，以便在转账的同时执行交换。
 

@@ -54,7 +54,7 @@ contract StorageBucketExample {
 }
 ```
 
-## 实际使用情况
+## 现实案例
 
 - 据我所知，第一个在生产环境中使用这种模式的主要协议是 [0x V4 合约](https://github.com/0xProject/protocol/tree/development/contracts/zero-ex/contracts/src/storage)。
 - 还有一种较新的可升级合约标准，称为”[钻石代理](https://eips.ethereum.org/EIPS/eip-2535)“，它也使用了存储桶。
