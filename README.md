@@ -43,8 +43,8 @@
     - 使用 ERC721/ERC1155 转移回调以避免用户提前设置限额。
 - [链下存储](./patterns/off-chain-storage)
     - 通过将合约状态移出链下，极大地降低 gas 成本。
-- [OnlyDelegateCall / NoDelegateCall](./patterns/only-delegatecall-no-delegatecall/)
-    - Restrict functions from being called from only within in a delegatecall context or not.
+- [仅允许委托调用 / 不允许委托调用](./patterns/only-delegatecall-no-delegatecall/)
+    - 给函数加以限制性仅允许或不允许委托调用。
 - [打包存储](./patterns/packing-storage)
     - 编排存储变量，以减少昂贵的存储访问。
 - [Permit2](./patterns/permit2)
