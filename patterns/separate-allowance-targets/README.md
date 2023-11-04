@@ -20,8 +20,6 @@
 
 该转账合约在业务协议升级过程中无需进行任何改变，随着协议的演变，可以给新版本的业务合约添加权限，因此协议合约的新版本可以立即使用现有的代币许可。也可以删除授权的调用者，这是安全地停用和解除协议的过时组件的便捷方式。
 
-
-
 ## 设计 `授权转账` 合约
 
 
@@ -68,10 +66,9 @@ function spendFrom(IERC20 token, address from, address to, uint256 value)
 
 ## 示例
 
-所包含的[示例](./AllowanceTarget.sol) 有一个完全可用的 `授权转账` 合约，该合约还支持不符合标准规范实现的 ERC20 代币。此外[测试](../../test/AllowanceTarget.sol)从用户和业务合约的角度展示了该合约的用法。
+所包含的[示例](./AllowanceTarget.sol)有一个完全可用的 `授权转账` 合约，该合约还支持不符合标准规范实现的 ERC20 代币。此外[测试](../../test/AllowanceTarget.sol)从用户和业务合约的角度展示了该合约的用法。
 
 
 ## 实际使用
 - 这种模式的早期的实际应用场景之一是与 0x v1（直至 v3）的交易所协议，该协议具有独立的["资产代理"](https://etherscan.io/address/0xf740b67da229f2f10bcbd38a7979992fcc71b8eb#code#F17#L1)合约，它们是代币转账授权的目标，并在结算期间代表协议执行转账。这些资产代理在协议的后续多个版本中持续使用。
 - Opensea 的 Seaport 协议有一个["导管"](https://github.com/ProjectOpenSea/seaport/blob/main/contracts/conduit/Conduit.sol)的概念，本质也是独立于撮合合约的独立合约，用户向其授权转账权限，撮合协议在结算期间通过它们执行转账。
-

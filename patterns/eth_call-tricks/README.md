@@ -4,14 +4,14 @@
     - [📜 swap forwarder](./swap-forwarder/)
     - [📜 swap forwarder with wallet unlock](./wallet-unlock-swap-forwarder/)
 
-`eth_call` 是在 EVM 节点/提供者上常用的 JSONRPC 命令。当 dapp 想要评估智能合约上的只读（`view` 或 `pure`）函数的返回值时，底层的 web3 库会在提供者（Alchemy、Infura、你自己的节点等）上执行一个 JSONRPC `eth_call` 命令。在另一端，处理请求的节点会执行函数调用（但不会真的上链这笔交易）并返回其结果。
+`eth_call` 是在 EVM 节点/提供者上常用的 JSONRPC 命令。当 dapp 想要评估智能合约上的只读（`view` 或 `pure`）函数的返回值时，底层的 Web3 库会在提供者（Alchemy、Infura、你自己的节点等）上执行一个 JSONRPC `eth_call` 命令。在另一端，处理请求的节点会执行函数调用（但不会真的上链这笔交易）并返回其结果。
 
 但这个命令的功能远不止大多数人意识到的那么简单！在这里，我将展示由 MEV 机器人、聚合器、数据平台等使用的技巧。
 
 
 ## 调用非只读函数
 
-令人惊讶的是，很少有 web3 开发者意识到 `eth_call` 不仅仅适用于只读函数；它适用于任何函数！每一个主流的 web3 库都有能力通过 `eth_call` 来评估任何非只读的合约函数：
+令人惊讶的是，很少有 Web3 开发者意识到 `eth_call` 不仅仅适用于只读函数；它适用于任何函数！每一个主流的 Web3 库都有能力通过 `eth_call` 来评估任何非只读的合约函数：
 
 
 ```ts
@@ -26,8 +26,6 @@ result = await contract.callStatic.doSomething(...ARGS);
 ```
 
 如果你想在将其提交到 mempool 之前先检查交易是否会成功, 或者如果你需要提前确认该调用的返回值, 那么这个技巧非常有用。
-
-
 
 ## 冒充其他账号或是篡改任意账户的 ETH 余额
 
@@ -48,12 +46,12 @@ result = await contract.callStatic.doSomething(...ARGS, { from: SOMEONE_ELSE, va
 Geth 节点（支持 Infura、Alchemy，并且是由 sidechains/L2s 主导的节点分支）支持可以传入 `eth_call` JSONRPC 命令的扩展参数。当调用被模拟时，这些参数允许你重写 EVM 状态的不同方面，包括：
 
 - 任何地址的 ETH 余额。
-- 任何地址的Nonce。
+- 任何地址的 Nonce。
 - 任何地址的字节码。
 - 任何地址中存储槽的值。
 
 
-大多数 web3 库不会方便地暴露出能够使用这些重写的API，但你仍然可以通过一些底层的方法使用它们。
+大多数 Web3 库不会方便地暴露出能够使用这些重写的 API，但你仍然可以通过一些底层的方法使用它们。
 
 
 ```ts
@@ -141,7 +139,7 @@ contract SwapForwarder {
 }
 ```
 
-我们进一步编译该合约并通过如下方式调用它(基于 ethers):
+我们进一步编译该合约并通过如下方式调用它（基于 ethers）：
 ```ts
 FORWARDER_ADDRESS = '0x123...'; // Some random address of your choosing.
 forwarder = new ethers.Contract(FORWARDER_ADDRESS, FORWARDER_ABI, PROVIDER);
@@ -163,7 +161,7 @@ daiAmount = ethers.utils.defaultAbiCoder.decode(['uint256'], rawResult)[0];
 #### 示例：解锁代币余额
 
 
-你可以根据需要随时创建 ETH，方法是将一些 ETH 附加到函数调用中或为特定地址设置 `eth_call` 余额状态覆盖。但假设你想执行于之前 swap 相反的路径 (DAI->USDC->ETH)。那么我们需要给 Forwarder 合约提供一些 DAI 代币。即使我们从一个确实拥有一些 DAI 的钱包地址发起对 Forwarder 合约的调用，这些 ERC20 代币也不能像 ETH 那样简单地附加到调用中。相反，该钱包地址首先需要将它们 `transfer()` 到Forwarder 合约，或者让 Forwarder 合约使用 `transferFrom()` 从钱包中提取它们，这在之前需要一个单独的 `approve()` 调用（也是从钱包地址发起的）。但请记住，我们只能在 `eth_call` 中直接调用一个函数。我们该如何解决这个问题呢？
+你可以根据需要随时创建 ETH，方法是将一些 ETH 附加到函数调用中或为特定地址设置 `eth_call` 余额状态覆盖。但假设你想执行于之前 swap 相反的路径（DAI->USDC->ETH）。那么我们需要给 Forwarder 合约提供一些 DAI 代币。即使我们从一个确实拥有一些 DAI 的钱包地址发起对 Forwarder 合约的调用，这些 ERC20 代币也不能像 ETH 那样简单地附加到调用中。相反，该钱包地址首先需要将它们 `transfer()` 到Forwarder 合约，或者让 Forwarder 合约使用 `transferFrom()` 从钱包中提取它们，这在之前需要一个单独的 `approve()` 调用（也是从钱包地址发起的）。但请记住，我们只能在 `eth_call` 中直接调用一个函数。我们该如何解决这个问题呢？
 
 可以说，获得 `eth_call` 中任意代币的最稳健方法是：
 
@@ -205,7 +203,7 @@ contract SwapForwarder {
 }
 ```
 
-然后这是我们需要如何调用 forwarder 合约的实例(基于 ethers):
+然后这是我们需要如何调用 forwarder 合约的实例（基于 ethers）：
 ```ts
 DAI_WALLET = '0xda1dadd1...'; // Address of a wallet with at least 100 DAI.
 // Find out how much selling 100 DAI for USDC then ETH across uniswap and sushi gets us.

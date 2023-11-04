@@ -13,7 +13,7 @@ Multicall 模式通过向外暴露函数（`multicall()`）提供了一个简单
 
 ## 案例研究：一个共享的质押钱包
 
-让我们用一个简单的合约 `TeamFarm` 来说明这种模式的有效性，它允许一群人将ETH和ERC20存入合约，并在一些 [ERC4626](https://ethereum.org/en/developers/docs/standards/tokens/erc-4626/) 金库中质押/取消质押这些资产。
+让我们用一个简单的合约 `TeamFarm` 来说明这种模式的有效性，它允许一群人将 ETH 和 ERC20 存入合约，并在一些 [ERC4626](https://ethereum.org/en/developers/docs/standards/tokens/erc-4626/) 金库中质押/取消质押这些资产。
 
 
 合约有几个向外暴露的函数用于管理合约持有的资金和质押：
@@ -21,14 +21,14 @@ Multicall 模式通过向外暴露函数（`multicall()`）提供了一个简单
 
 | 函数       | 描述       |
 |-------------|---------|
-| `deposit(token, tokenAmount)` | 将ERC20或ETH存入合约。|
-| `withdraw(token, tokenAmount, receiver)` | 从合约中取出ERC20或ETH。 |
-| `wrap(ethAmount)` | 将合约持有的ETH数量包装成WETH。 |
-| `unwrap(wethAmount)` | 将合约持有的WETH数量解包成ETH。 |
-| `stake(vault, assets)` | 将合约持有的代币数量（assets）质押到ERC4626金库，用资产创建份额。 |
-| `unstake(vault, shares)` | 从ERC4626金库中取出合约持有的份额数量，将份额换回资产。 |
+| `deposit(token, tokenAmount)` | 将 ERC20 或 ETH 存入合约。 |
+| `withdraw(token, tokenAmount, receiver)` | 从合约中取出 ERC20 或 ETH。 |
+| `wrap(ethAmount)` | 将合约持有的 ETH 数量包装成 WETH。 |
+| `unwrap(wethAmount)` | 将合约持有的 WETH 数量解包成 ETH。 |
+| `stake(vault, assets)` | 将合约持有的代币数量（assets）质押到 ERC4626 金库，用资产创建份额。 |
+| `unstake(vault, shares)` | 从 ERC4626 金库中取出合约持有的份额数量，将份额换回资产。 |
 
-成员可以随时按任何顺序进行这些操作。假设一个成员想要存入X数量的ETH到合约，将其包装成WETH，然后将该WETH质押到一个金库，他们需要进行以下一系列调用：
+成员可以随时按任何顺序进行这些操作。假设一个成员想要存入 X 数量的 ETH 到合约，将其包装成 WETH，然后将该 WETH 质押到一个金库，他们需要进行以下一系列调用：
 
 
 1. `deposit(token=0, tokenAmount=X)` (其中 `0` 地址指代原生 ETH )
@@ -72,6 +72,6 @@ TEAM_FARM_CONTRACT.multicall([
 
 
 ## 现实世界中的例子
-- [Uniswap V3 的路由合约](https://github.com/Uniswap/v3-periphery/blob/main/contracts/SwapRouter.sol#L27) 和 [position manager 合约](https://github.com/Uniswap/v3-periphery/blob/main/contracts/NonfungiblePositionManager.sol#L25) 是 multicall 模式最常用的实现.
-- UMA 协议中的 [`Multicaller`](https://github.com/UMAprotocol/protocol/blob/master/packages/core/contracts/common/implementation/MultiCaller.sol) 也提供类似的功能, 供 `HubPool` 和 `SpokePool` 合约调用.
-- PartyDAO 的 [Party 协议](https://github.com/PartyDAO/party-protocol) 在他们的 [全局配置合约](https://github.com/PartyDAO/party-protocol/blob/main/contracts/globals/Globals.sol) 上也使用了 multicall 的模式, 以便他们能够一次性更新多个配置参数。
+- [Uniswap V3 的路由合约](https://github.com/Uniswap/v3-periphery/blob/main/contracts/SwapRouter.sol#L27)和 [position manager 合约](https://github.com/Uniswap/v3-periphery/blob/main/contracts/NonfungiblePositionManager.sol#L25)是 multicall 模式最常用的实现。
+- UMA 协议中的 [`Multicaller`](https://github.com/UMAprotocol/protocol/blob/master/packages/core/contracts/common/implementation/MultiCaller.sol) 也提供类似的功能, 供 `HubPool` 和 `SpokePool` 合约调用。
+- PartyDAO 的 [Party 协议](https://github.com/PartyDAO/party-protocol)在他们的[全局配置合约](https://github.com/PartyDAO/party-protocol/blob/main/contracts/globals/Globals.sol)上也使用了 multicall 的模式, 以便他们能够一次性更新多个配置参数。
