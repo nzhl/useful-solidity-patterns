@@ -1,27 +1,27 @@
-# Flash Loans
+# 闪电贷
 
-- [📜 Example Code](./FlashLoanPool.sol)
-- [🐞 Tests](../../test/FlashLoanPool.t.sol)
+- [📜 示例代码](./FlashLoanPool.sol)
+- [🐞 测试](../../test/FlashLoanPool.t.sol)
 
-For better or worse, flash loans are a permanent fixture of the modern defi landscape. As the name implies, flash loans allow people to borrow massive (sometimes protocol breaking) amounts of an asset asset during the lifespan of a function call, typically for just a small (or no) fee. For protocols that custody assets, flash loans can be an additional source of yield without risking any of its assets... if implemented [securely](#security-considerations) 🤞.
+无论你认为它是好是坏，闪电贷俨然已经成为了现代去中心化金融系统架构中将会永远存在的一项机制。顾名思义，闪电贷允许用户来借出巨量价值的资产（有时量大到足以击垮一些协议的设计），仅在一个函数调用的周期之内完成“出借-使用-归还”系列操作，并且借贷费用是极小的，有时甚至没有费用。对于一些功能为资产托管的协议来说，闪电贷可以给其提供一种无风险的额外的收益。。。前提是它的实现机制是[安全的](#security-considerations) 🤞。
 
-Here we'll explore creating a basic flash loan protocol to illustrate the concept.
+现在让我们通过尝试创建一个基本的闪电贷协议来阐述这一概念。
 
-## Anatomy of a Flash Loan
+## 解析闪电贷
 
-At their core, flash loans are actually fairly simple, following this typical flow:
+闪电贷的核心机制其实是相对简单的，流程如下：
 
-1. Transfer loaned assets to a user-provided borrower contract.
-2. Call a handler function on the borrower contract to hand over execution control.
-    1. Let the borrower contract perform whatever actions it needs to do with those assets.
-3. After the borrower's handler function returns, verify that all of the borrowed assets have been returned + some extra as fee.
+1. 贷方合约将要出借的资产转移至一个用户所提供的借方合约处，完成出借。
+2. 调用借方合约的处理函数来移交执行权。
+    1. 借方合约的处理函数可任意去使用这些借来的资产，在这一步内完成使用。
+3. 在借方合约的处理函数返回之后，贷方合约来检验所有出借的资产均已归还，并且还应有一些额外的部分作为收缴的费用。完成归还。
 
 
-![flash loan flow](./flash-loan-flow.drawio.svg)
+![闪电贷流程](./flash-loan-flow.drawio.svg)
 
-The entirety of the loan occurs inside of the call to the loan function. If the borrower fails to return the assets (+ fee) by the time their logic completes, the entire call frame reverts and it will be as if the loan and the actions performed within never happened, exposing no assets to any™️ risk. It's this lack of risk that helps drive the fee associated with flash loans down.
+整个借款并归还的流程都将在对贷出函数的调用之内完成。如果借款人无法在其借方合约的处理函数操作完成之后达到可以归还全部借款（加上费用）的状态，那么整个执行过程连带状态变量的更改都将会撤销，一切就像这笔借款请求从未发生过一样，所以没有资产会因此暴露于风险之中。正是这种无风险的特性，才使得闪电贷的借贷费用可以是很低的。
 
-## A Simple FLash Loan Protocol
+## 一个简易版闪电贷协议
 
 Let's write a super simple ERC20 pool contract owned and funded by a single entity. Borrowers can come along and take a flash loan against the pool's tokens, earning a small fee along the way and increasing the total value of the pool. For additional simplicity, this contract will only support [compliant](../erc20-compatibility/) ERC20 tokens that don't take fees on transfer.
 
