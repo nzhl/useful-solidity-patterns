@@ -33,6 +33,8 @@
     - 介绍与个人地址和合约地址交互会产生的不同后果以及如何甄别这两种地址。
 - [工厂证明](./patterns/factory-proofs)
     - 在链上证明合约是由可信任的部署人部署的。
+- [闪电贷](./patterns/flash-loans/)
+    - 设计一个基本的闪电贷机制.
 - [初始化可升级合约](./patterns/initializing-upgradeable-contracts)
     - 安全且高效地为代理合约初始化变量的方法。
 - [默克尔证明](./patterns/merkle-proofs)
