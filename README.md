@@ -17,6 +17,8 @@
     - 可升级合约相关的逻辑。
 - [较大数据的存储 (SSTORE2)](./patterns/big-data-storage)
     - 一种更加节省 gas 的利用链上合约代码存储空间来储存任意数据（并可被合约读取）的方法，对较大的多词数据尤为有效。
+- [位图Nonces](./patterns/bitmap-nonces/)
+    - 利用具有唯一性的标记值来高效地追踪一系列频繁发生的交易操作的链上状态。
 - [先提交 + 再揭晓](./patterns/commit-reveal)
     - 用一种“分两步走”的交易处理模式来产生“半模糊”的链上行为，用来防止抢跑交易和跟随交易。
 - [EIP712 链下消息签名](./patterns/eip712-signed-messages)
